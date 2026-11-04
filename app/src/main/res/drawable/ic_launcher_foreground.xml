@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dos teléfonos superpuestos con una marca de verificación. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Teléfono de atrás -->
+    <path
+        android:fillColor="#80FFFFFF"
+        android:pathData="M44,30h22a5,5 0,0 1,5 5v34a5,5 0,0 1,-5 5h-22a5,5 0,0 1,-5 -5v-34a5,5 0,0 1,5 -5z" />
+    <!-- Teléfono de adelante -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M38,36h22a5,5 0,0 1,5 5v34a5,5 0,0 1,-5 5h-22a5,5 0,0 1,-5 -5v-34a5,5 0,0 1,5 -5z" />
+    <!-- Cámara -->
+    <path
+        android:fillColor="#1659B8"
+        android:pathData="M42,43m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
+    <!-- Marca de verificación -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#00796B"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M41,60l6,6l11,-12" />
+</vector>
