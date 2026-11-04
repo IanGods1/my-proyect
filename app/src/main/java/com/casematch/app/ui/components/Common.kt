@@ -26,6 +26,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import com.casematch.app.ui.theme.Navy
+import com.casematch.app.ui.theme.OnNavy
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.text.input.KeyboardType
@@ -101,7 +104,7 @@ fun AppTopBar(
                     Text(
                         subtitle,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = OnNavy.copy(alpha = 0.8f),
                         maxLines = 1,
                     )
                 }
@@ -115,6 +118,13 @@ fun AppTopBar(
             }
         },
         actions = actions,
+        // Barra superior azul marino oscuro (en modo claro y oscuro).
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = Navy,
+            titleContentColor = OnNavy,
+            navigationIconContentColor = OnNavy,
+            actionIconContentColor = OnNavy,
+        ),
     )
 }
 

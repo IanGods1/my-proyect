@@ -15,12 +15,12 @@
         android:pathData="M38,36h22a5,5 0,0 1,5 5v34a5,5 0,0 1,-5 5h-22a5,5 0,0 1,-5 -5v-34a5,5 0,0 1,5 -5z" />
     <!-- Cámara -->
     <path
-        android:fillColor="#1659B8"
+        android:fillColor="#0A2342"
         android:pathData="M42,43m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
     <!-- Marca de verificación -->
     <path
         android:fillColor="#00000000"
-        android:strokeColor="#00796B"
+        android:strokeColor="#3D7BD9"
         android:strokeWidth="5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"

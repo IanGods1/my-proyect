@@ -42,10 +42,12 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.LIGHT -> false
                 ThemeMode.DARK -> true
             }
-            // Ajusta el color de los íconos de la barra de estado al tema elegido.
-            DisposableEffect(dark) {
-                val style = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { dark }
-                enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+                        DisposableEffect(dark) {
+                // Barra de estado con íconos claros sobre la barra superior azul marino.
+                enableEdgeToEdge(
+                    statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+                    navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { dark },
+                )
                 onDispose {}
             }
             CaseMatchTheme(darkTheme = dark) {

@@ -8,34 +8,42 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.sp
 
+/** Azul marino oscuro: color principal de Guastaccesorio. */
+val Navy = Color(0xFF0A2342)
+val OnNavy = Color(0xFFFFFFFF)
+
 private val LightColors = lightColorScheme(
-    primary = Color(0xFF1659B8),
-    onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFD6E3FF),
-    onPrimaryContainer = Color(0xFF001B3E),
-    secondary = Color(0xFF00796B),
+    primary = Navy,
+    onPrimary = OnNavy,
+    primaryContainer = Color(0xFFD6E0F0),
+    onPrimaryContainer = Color(0xFF001A3D),
+    secondary = Color(0xFF3D5A80),
     onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFB2EFE4),
-    onSecondaryContainer = Color(0xFF00201C),
+    secondaryContainer = Color(0xFFDCE5F3),
+    onSecondaryContainer = Color(0xFF0D1F38),
     tertiaryContainer = Color(0xFFFFE0B2),
     onTertiaryContainer = Color(0xFF3E2600),
-    background = Color(0xFFF8F9FC),
-    surface = Color(0xFFF8F9FC),
+    background = Color(0xFFF4F6FA),
+    surface = Color(0xFFF4F6FA),
+    surfaceVariant = Color(0xFFE1E6EF),
+    onSurfaceVariant = Color(0xFF424A57),
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFFA9C7FF),
-    onPrimary = Color(0xFF002F65),
-    primaryContainer = Color(0xFF00458F),
-    onPrimaryContainer = Color(0xFFD6E3FF),
-    secondary = Color(0xFF80D5C8),
-    onSecondary = Color(0xFF003731),
-    secondaryContainer = Color(0xFF005048),
-    onSecondaryContainer = Color(0xFFB2EFE4),
+    primary = Color(0xFFA9C4EE),
+    onPrimary = Navy,
+    primaryContainer = Color(0xFF1D3A66),
+    onPrimaryContainer = Color(0xFFD6E0F0),
+    secondary = Color(0xFF9DB4D6),
+    onSecondary = Color(0xFF0D1F38),
+    secondaryContainer = Color(0xFF243B5C),
+    onSecondaryContainer = Color(0xFFDCE5F3),
     tertiaryContainer = Color(0xFF5A3D00),
     onTertiaryContainer = Color(0xFFFFE0B2),
-    background = Color(0xFF111318),
-    surface = Color(0xFF111318),
+    background = Color(0xFF07111F),
+    surface = Color(0xFF07111F),
+    surfaceVariant = Color(0xFF17253B),
+    onSurfaceVariant = Color(0xFFC3CCDA),
 )
 
 /** Textos un poco más grandes de lo normal para que la app sea fácil de leer. */
