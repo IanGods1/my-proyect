@@ -87,6 +87,23 @@ interface CompatDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertRef(ref: GroupModelCrossRef): Long
 
+    // ---------------------------------------------------------------- Sincronización con la nube
+
+    @Query("SELECT * FROM groups")
+    suspend fun getGroups(): List<CompatGroup>
+
+    @Query("SELECT * FROM group_models")
+    suspend fun getRefs(): List<GroupModelCrossRef>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertModels(models: List<PhoneModel>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertGroups(groups: List<CompatGroup>)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertRefs(refs: List<GroupModelCrossRef>)
+
     // ---------------------------------------------------------------- Borrado total
 
     @Query("DELETE FROM group_models")

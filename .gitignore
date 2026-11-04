@@ -10,3 +10,6 @@
 .cxx
 *.apk
 *.keystore
+
+# Configuración de Firebase (se agrega como secreto en GitHub o se copia a mano)
+app/google-services.json

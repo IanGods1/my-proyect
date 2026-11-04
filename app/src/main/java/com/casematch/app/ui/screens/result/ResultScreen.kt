@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -50,7 +52,8 @@ fun ResultScreen(
     repository: CompatRepository,
     onBack: () -> Unit,
     onOpenModel: (Long) -> Unit,
-    onEditGroup: (Long) -> Unit,
+    /** null para el trabajador: no ve el botón de editar. */
+    onEditGroup: ((Long) -> Unit)?,
 ) {
     val vm: ResultViewModel = viewModel(key = "result-$modelId") { ResultViewModel(modelId, repository) }
     val model by vm.model.collectAsStateWithLifecycle()
@@ -114,7 +117,7 @@ fun ResultScreen(
                         GroupCard(
                             group = group,
                             onOpenModel = onOpenModel,
-                            onEdit = { onEditGroup(group.groupId) },
+                            onEdit = onEditGroup?.let { edit -> { edit(group.groupId) } },
                         )
                     }
                 }
@@ -127,7 +130,7 @@ fun ResultScreen(
 private fun GroupCard(
     group: CompatibilityGroup,
     onOpenModel: (Long) -> Unit,
-    onEdit: () -> Unit,
+    onEdit: (() -> Unit)?,
 ) {
     Card(
         shape = RoundedCornerShape(16.dp),
@@ -144,8 +147,13 @@ private fun GroupCard(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                IconButton(onClick = onEdit) {
-                    Icon(Icons.Filled.Edit, contentDescription = "Editar grupo")
+                if (onEdit != null) {
+                    IconButton(onClick = onEdit) {
+                        Icon(Icons.Filled.Edit, contentDescription = "Editar grupo")
+                    }
+                } else {
+                    // Mantiene la misma altura de la fila sin el botón.
+                    Spacer(Modifier.height(48.dp))
                 }
             }
             group.others.forEachIndexed { i, m ->

@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "CaseMatch"
+rootProject.name = "Guastaccesorio"
 include(":app")

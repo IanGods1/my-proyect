@@ -110,7 +110,7 @@ class AdminViewModel(private val repository: CompatRepository) : ViewModel() {
                 withContext(Dispatchers.IO) {
                     val bytes = when (format) {
                         ExportFormat.CSV -> CsvFormat.write(table).toByteArray(Charsets.UTF_8)
-                        ExportFormat.XLSX -> XlsxFormat.write(table, "CaseMatch")
+                        ExportFormat.XLSX -> XlsxFormat.write(table, "Guastaccesorio")
                     }
                     resolver.openOutputStream(uri, "wt")?.use { it.write(bytes) }
                         ?: throw IllegalStateException("No se pudo crear el archivo")

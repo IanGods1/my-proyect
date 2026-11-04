@@ -7,12 +7,29 @@ import com.casematch.app.model.GroupType
 import com.casematch.app.util.BrandDetector
 import com.casematch.app.util.TextNormalizer
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 data class ImportSummary(val newGroups: Int, val newModels: Int, val newLinks: Int)
 
 /** Único punto de acceso a los datos. Devuelve mensajes de error en español (o null si todo salió bien). */
 class CompatRepository(private val db: AppDatabase) {
     private val dao = db.dao()
+
+    /**
+     * Evita que una sincronización con la nube y un cambio del administrador se mezclen.
+     * No es reentrante: [onDataChanged] se llama con el bloqueo tomado y no debe volver a tomarlo.
+     */
+    val writeLock = Mutex()
+
+    /** Se llama (con [writeLock] tomado) después de cada cambio hecho por el administrador. */
+    var onDataChanged: (suspend () -> Unit)? = null
+
+    private suspend fun <T> mutate(block: suspend () -> T): T = writeLock.withLock {
+        val result = block()
+        onDataChanged?.invoke()
+        result
+    }
 
     fun observeModels(): Flow<List<PhoneModel>> = dao.observeModels()
     fun observeModel(id: Long): Flow<PhoneModel?> = dao.observeModel(id)
@@ -47,7 +64,11 @@ class CompatRepository(private val db: AppDatabase) {
         return model.copy(id = id) to true
     }
 
-    suspend fun addModel(rawName: String, rawBrand: String): String? {
+    suspend fun addModel(rawName: String, rawBrand: String): String? = mutate {
+        addModelInternal(rawName, rawBrand)
+    }
+
+    private suspend fun addModelInternal(rawName: String, rawBrand: String): String? {
         val name = TextNormalizer.clean(rawName)
         val normalized = TextNormalizer.normalize(name)
         if (normalized.isEmpty()) return "Escribe el nombre del modelo"
@@ -57,7 +78,11 @@ class CompatRepository(private val db: AppDatabase) {
         return null
     }
 
-    suspend fun updateModel(id: Long, rawName: String, rawBrand: String): String? {
+    suspend fun updateModel(id: Long, rawName: String, rawBrand: String): String? = mutate {
+        updateModelInternal(id, rawName, rawBrand)
+    }
+
+    private suspend fun updateModelInternal(id: Long, rawName: String, rawBrand: String): String? {
         val name = TextNormalizer.clean(rawName)
         val normalized = TextNormalizer.normalize(name)
         if (normalized.isEmpty()) return "Escribe el nombre del modelo"
@@ -68,14 +93,24 @@ class CompatRepository(private val db: AppDatabase) {
         return null
     }
 
-    suspend fun deleteModel(id: Long) = db.withTransaction {
-        dao.deleteRefsForModel(id)
-        dao.deleteModelRow(id)
+    suspend fun deleteModel(id: Long): Unit = mutate {
+        db.withTransaction {
+            dao.deleteRefsForModel(id)
+            dao.deleteModelRow(id)
+        }
     }
 
     // ---------------------------------------------------------------- Grupos
 
     suspend fun saveGroup(
+        id: Long?,
+        type: GroupType,
+        rawName: String,
+        rawNote: String,
+        modelNames: List<String>,
+    ): String? = mutate { saveGroupInternal(id, type, rawName, rawNote, modelNames) }
+
+    private suspend fun saveGroupInternal(
         id: Long?,
         type: GroupType,
         rawName: String,
@@ -109,14 +144,20 @@ class CompatRepository(private val db: AppDatabase) {
         }
     }
 
-    suspend fun deleteGroup(id: Long) = db.withTransaction {
-        dao.deleteRefsForGroup(id)
-        dao.deleteGroupRow(id)
+    suspend fun deleteGroup(id: Long): Unit = mutate {
+        db.withTransaction {
+            dao.deleteRefsForGroup(id)
+            dao.deleteGroupRow(id)
+        }
     }
 
     // ---------------------------------------------------------------- Importar / exportar
 
-    suspend fun import(rows: List<ImportRow>, replaceAll: Boolean): ImportSummary = db.withTransaction {
+    suspend fun import(rows: List<ImportRow>, replaceAll: Boolean): ImportSummary = mutate {
+        importInternal(rows, replaceAll)
+    }
+
+    private suspend fun importInternal(rows: List<ImportRow>, replaceAll: Boolean): ImportSummary = db.withTransaction {
         if (replaceAll) {
             dao.clearRefs()
             dao.clearGroups()
@@ -176,22 +217,76 @@ class CompatRepository(private val db: AppDatabase) {
 
     // ---------------------------------------------------------------- Datos de ejemplo
 
-    suspend fun seedSampleDataIfEmpty() {
-        if (dao.countGroups() > 0) return
-        saveGroup(
+    /** Carga los datos de ejemplo. No se considera un cambio del administrador (no se sube a la nube). */
+    suspend fun seedSampleDataIfEmpty(): Unit = writeLock.withLock {
+        if (dao.countGroups() > 0) return@withLock
+        saveGroupInternal(
             id = null,
             type = GroupType.CASE,
             rawName = "Case grupo iPhone 13/14/15",
             rawNote = "La cámara del 15 queda un poco justa",
             modelNames = listOf("iPhone 13", "iPhone 14", "iPhone 15"),
         )
-        saveGroup(
+        saveGroupInternal(
             id = null,
             type = GroupType.GLASS,
             rawName = "Vidrio grupo iPhone 12/12 Pro/13/13 Pro/14",
             rawNote = "Pantalla de 6,1\". Verificar el recorte de la cámara frontal antes de vender.",
             modelNames = listOf("iPhone 12", "iPhone 12 Pro", "iPhone 13", "iPhone 13 Pro", "iPhone 14"),
         )
+        Unit
+    }
+
+    // ---------------------------------------------------------------- Copia en la nube
+
+    /** Todos los datos locales en el formato de Firestore. */
+    suspend fun localSnapshot(): CloudSnapshot {
+        val models = dao.getModels().associate { m ->
+            m.id.toString() to CloudSnapshot.modelFields(m.name, m.brand, m.normalized)
+        }
+        val refsByGroup = dao.getRefs().groupBy({ it.groupId }, { it.modelId.toString() })
+        val groups = dao.getGroups().associate { g ->
+            g.id.toString() to CloudSnapshot.groupFields(g.type.name, g.name, g.note, refsByGroup[g.id].orEmpty())
+        }
+        return CloudSnapshot(models, groups)
+    }
+
+    /**
+     * Reemplaza todos los datos locales por los de la nube.
+     * Debe llamarse con [writeLock] tomado.
+     */
+    suspend fun replaceAllWithCloud(snapshot: CloudSnapshot): Unit = db.withTransaction {
+        dao.clearRefs()
+        dao.clearGroups()
+        dao.clearModels()
+        dao.insertModels(
+            snapshot.models.mapNotNull { (id, f) ->
+                val longId = id.toLongOrNull() ?: return@mapNotNull null
+                val name = f["name"] as? String ?: return@mapNotNull null
+                val normalized = (f["normalized"] as? String).orEmpty().ifEmpty { TextNormalizer.normalize(name) }
+                PhoneModel(
+                    id = longId,
+                    name = name,
+                    brand = (f["brand"] as? String).orEmpty().ifEmpty { BrandDetector.detect(name) },
+                    normalized = normalized,
+                )
+            }
+        )
+        val existingModelIds = dao.getModels().map { it.id }.toSet()
+        val groups = snapshot.groups.mapNotNull { (id, f) ->
+            val longId = id.toLongOrNull() ?: return@mapNotNull null
+            val type = GroupType.entries.firstOrNull { it.name == f["type"] } ?: GroupType.CASE
+            CompatGroup(id = longId, type = type, name = f["name"] as? String ?: "", note = f["note"] as? String ?: "")
+        }
+        dao.insertGroups(groups)
+        val refs = snapshot.groups.flatMap { (id, f) ->
+            val groupId = id.toLongOrNull() ?: return@flatMap emptyList<GroupModelCrossRef>()
+            (f["models"] as? List<*>).orEmpty()
+                .mapNotNull { it?.toString()?.toLongOrNull() }
+                .filter { it in existingModelIds }
+                .map { GroupModelCrossRef(groupId = groupId, modelId = it) }
+        }
+        dao.insertRefs(refs)
     }
 
     companion object {

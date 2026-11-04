@@ -221,7 +221,7 @@ fun AdminScreen(
                     ExportFormat.entries.forEach { f ->
                         BigButton(text = f.label, outlined = f != ExportFormat.CSV, onClick = {
                             showExportDialog = false
-                            val fileName = "casematch_respaldo_${LocalDate.now()}.${f.extension}"
+                            val fileName = "guastaccesorio_respaldo_${LocalDate.now()}.${f.extension}"
                             when (f) {
                                 ExportFormat.CSV -> exportCsvLauncher.launch(fileName)
                                 ExportFormat.XLSX -> exportXlsxLauncher.launch(fileName)

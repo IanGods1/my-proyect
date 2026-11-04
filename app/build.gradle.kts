@@ -5,16 +5,29 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+// Firebase se activa solo si existe app/google-services.json (ver README).
+// Sin ese archivo la app compila igual y funciona solo con datos locales.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
+// Nombre del archivo APK: Guastaccesorio-release.apk / Guastaccesorio-debug.apk
+base {
+    archivesName.set("Guastaccesorio")
+}
+
 android {
     namespace = "com.casematch.app"
     compileSdk = 35
 
     defaultConfig {
+        // El identificador del paquete NO se cambia: si cambiara, Android la trataría como
+        // otra app y no se podría instalar encima de la anterior (se perderían los datos).
         applicationId = "com.casematch.app"
         minSdk = 26 // Android 8.0
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "2.0"
     }
 
     // Clave de firma fija incluida en el proyecto: así cada APK compilado (en tu PC o en
@@ -77,6 +90,12 @@ dependencies {
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
+
+    // Firebase: base de datos compartida (Firestore) y sesiones (Authentication)
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.firebase:firebase-auth")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
 
     testImplementation("junit:junit:4.13.2")
 }

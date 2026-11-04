@@ -7,6 +7,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.casematch.app.ThemeMode
+import com.casematch.app.auth.AuthManager
+import com.casematch.app.auth.Role
 import com.casematch.app.data.CompatRepository
 import com.casematch.app.model.GroupType
 import com.casematch.app.ui.screens.admin.AdminScreen
@@ -14,12 +16,14 @@ import com.casematch.app.ui.screens.group.GroupEditScreen
 import com.casematch.app.ui.screens.home.HomeScreen
 import com.casematch.app.ui.screens.models.ModelsScreen
 import com.casematch.app.ui.screens.result.ResultScreen
+import com.casematch.app.ui.screens.settings.SettingsScreen
 
 private object Routes {
     const val HOME = "home"
     const val MODELS = "models"
     const val ADMIN = "admin"
     const val ADMIN_MODELS = "admin_models"
+    const val SETTINGS = "settings"
     const val RESULT = "result/{modelId}"
     const val GROUP = "group/{groupId}?type={type}"
 
@@ -28,24 +32,31 @@ private object Routes {
         "group/${groupId ?: -1L}" + (type?.let { "?type=${it.name}" } ?: "")
 }
 
+/**
+ * Navegación. Las pantallas de administración (grupos, modelos, importar/exportar y
+ * configuración) solo se registran para el ADMINISTRADOR: el trabajador no puede llegar a ellas.
+ */
 @Composable
 fun AppNavHost(
     repository: CompatRepository,
+    auth: AuthManager,
+    role: Role,
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
 ) {
     val nav = rememberNavController()
     val back: () -> Unit = { nav.popBackStack() }
+    val isAdmin = role == Role.ADMIN
 
     NavHost(navController = nav, startDestination = Routes.HOME) {
         composable(Routes.HOME) {
             HomeScreen(
                 repository = repository,
-                themeMode = themeMode,
-                onThemeModeChange = onThemeModeChange,
+                isAdmin = isAdmin,
                 onOpenModel = { nav.navigate(Routes.result(it)) },
                 onOpenModels = { nav.navigate(Routes.MODELS) },
                 onOpenAdmin = { nav.navigate(Routes.ADMIN) },
+                onOpenSettings = { nav.navigate(Routes.SETTINGS) },
             )
         }
         composable(
@@ -58,7 +69,7 @@ fun AppNavHost(
                 repository = repository,
                 onBack = back,
                 onOpenModel = { nav.navigate(Routes.result(it)) },
-                onEditGroup = { nav.navigate(Routes.group(it)) },
+                onEditGroup = if (isAdmin) ({ id: Long -> nav.navigate(Routes.group(id)) }) else null,
             )
         }
         composable(Routes.MODELS) {
@@ -67,6 +78,17 @@ fun AppNavHost(
                 adminMode = false,
                 onBack = back,
                 onOpenModel = { nav.navigate(Routes.result(it)) },
+            )
+        }
+        if (!isAdmin) return@NavHost
+
+        // ------------------------------------------------ Solo administrador
+        composable(Routes.SETTINGS) {
+            SettingsScreen(
+                auth = auth,
+                themeMode = themeMode,
+                onThemeModeChange = onThemeModeChange,
+                onBack = back,
             )
         }
         composable(Routes.ADMIN_MODELS) {

@@ -2,7 +2,6 @@ package com.casematch.app.ui.screens.home
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,14 +18,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -35,9 +31,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
@@ -46,7 +39,6 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.casematch.app.ThemeMode
 import com.casematch.app.data.CompatRepository
 import com.casematch.app.data.PhoneModel
 import com.casematch.app.ui.components.AppTopBar
@@ -56,48 +48,28 @@ import com.casematch.app.ui.components.EmptyState
 @Composable
 fun HomeScreen(
     repository: CompatRepository,
-    themeMode: ThemeMode,
-    onThemeModeChange: (ThemeMode) -> Unit,
+    isAdmin: Boolean,
     onOpenModel: (Long) -> Unit,
     onOpenModels: () -> Unit,
     onOpenAdmin: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val vm: HomeViewModel = viewModel { HomeViewModel(repository) }
     val suggestions by vm.suggestions.collectAsStateWithLifecycle()
     val modelCount by vm.modelCount.collectAsStateWithLifecycle()
     val groupCount by vm.groupCount.collectAsStateWithLifecycle()
     val focus = LocalFocusManager.current
-    var menuOpen by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             AppTopBar(
-                title = "CaseMatch",
+                title = "Guastaccesorio",
                 subtitle = "Compatibilidad de cases y vidrios",
                 actions = {
-                    Box {
-                        IconButton(onClick = { menuOpen = true }) {
-                            Icon(Icons.Filled.MoreVert, contentDescription = "Más opciones")
-                        }
-                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                            Text(
-                                "Tema",
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                            ThemeMode.entries.forEach { mode ->
-                                DropdownMenuItem(
-                                    text = { Text(mode.label) },
-                                    onClick = {
-                                        onThemeModeChange(mode)
-                                        menuOpen = false
-                                    },
-                                    trailingIcon = {
-                                        if (mode == themeMode) Icon(Icons.Filled.Check, contentDescription = "Seleccionado")
-                                    },
-                                )
-                            }
+                    // Configuración: solo el administrador (el trabajador no ve este botón).
+                    if (isAdmin) {
+                        IconButton(onClick = onOpenSettings) {
+                            Icon(Icons.Filled.Settings, contentDescription = "Configuración")
                         }
                     }
                 },
@@ -154,12 +126,21 @@ fun HomeScreen(
                     onClick = onOpenModels,
                 )
                 Spacer(Modifier.height(12.dp))
-                BigButton(
-                    text = "Administrar datos",
-                    icon = Icons.Filled.Settings,
-                    outlined = true,
-                    onClick = onOpenAdmin,
-                )
+                if (isAdmin) {
+                    BigButton(
+                        text = "Administrar datos",
+                        icon = Icons.Filled.Edit,
+                        outlined = true,
+                        onClick = onOpenAdmin,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    BigButton(
+                        text = "Configuración",
+                        icon = Icons.Filled.Settings,
+                        outlined = true,
+                        onClick = onOpenSettings,
+                    )
+                }
                 Spacer(Modifier.height(24.dp))
                 Text(
                     "$modelCount modelos registrados · $groupCount grupos de compatibilidad",
@@ -169,7 +150,8 @@ fun HomeScreen(
             } else if (suggestions.isEmpty()) {
                 EmptyState(
                     text = "No se encontró ningún modelo",
-                    detail = "Revisa cómo está escrito o agrégalo desde \"Administrar datos\".",
+                    detail = if (isAdmin) "Revisa cómo está escrito o agrégalo desde \"Administrar datos\"."
+                    else "Revisa cómo está escrito.",
                     modifier = Modifier.padding(top = 24.dp),
                 )
             } else {
