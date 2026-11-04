@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "743621945744",
+    "project_id": "guastaccesorio-1c7b0",
+    "storage_bucket": "guastaccesorio-1c7b0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:743621945744:android:693b126caf36e088f16b15",
+        "android_client_info": {
+          "package_name": "com.casematch.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAz35ggEJj4L3SM1PCfIpKk3c0tThHHRZc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
