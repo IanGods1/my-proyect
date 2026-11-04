@@ -18,7 +18,7 @@ Buscas un modelo (por ejemplo "iPhone 13") y la app te muestra, en dos pestañas
 | Pantalla | Administrador | Trabajador |
 |---|---|---|
 | **Buscar** (inicio): sugerencias mientras escribes. `ip13`, `iphone 13` e `IPHONE13` encuentran "iPhone 13". | ✓ | ✓ |
-| **Resultado**: pestañas **Case** y **Vidrio templado** con los modelos compatibles y la nota de cada grupo. Si no hay datos: "Sin compatibilidades registradas". | ✓ (con botón editar) | ✓ (solo ver) |
+| **Resultado**: pestañas **Case** y **Vidrio templado** con los modelos compatibles y la nota de cada grupo. En **Vidrio templado** se elige la clase: **Normal**, **9D** o **Privacy**. Si no hay datos: "Sin compatibilidades registradas". | ✓ (con botón editar) | ✓ (solo ver) |
 | **Lista de modelos**: todos los modelos agrupados por marca (Apple, Samsung, Xiaomi, Motorola y luego el resto). | ✓ | ✓ |
 | **Administrar datos**: crear, editar y eliminar grupos; importar y exportar. | ✓ | — oculto |
 | **Administrar modelos**: agregar, renombrar, cambiar marca y eliminar modelos. | ✓ | — oculto |
@@ -52,21 +52,39 @@ Si la app se compila **sin** configurar Firebase, funciona igual pero todo queda
 
 ### Grupos de compatibilidad (no pares)
 
-Cada grupo tiene un tipo (Case o Vidrio templado), un nombre, una lista de modelos y una nota opcional. Todos los modelos de un grupo son compatibles entre sí, así que funciona en ambos sentidos: si el iPhone 13 está en el mismo grupo que el iPhone 14, al buscar cualquiera de los dos aparece el otro.
+Cada grupo tiene un tipo (Case o Vidrio templado), una lista de modelos, una nota opcional y un nombre (opcional: si lo dejas vacío se genera solo). Todos los modelos de un grupo son compatibles entre sí, así que funciona en ambos sentidos: si el iPhone 13 está en el mismo grupo que el iPhone 14, al buscar cualquiera de los dos aparece el otro.
+
+### Clases de vidrio templado: Normal, 9D y Privacy
+
+Un grupo de vidrio templado tiene una **clase**: **Vidrio normal**, **Vidrio 9D** o **Vidrio privacy**. Cada clase se carga como un grupo distinto, porque un mismo teléfono puede compartir el vidrio normal con unos modelos y el 9D con otros.
+
+- **Al crear un grupo** (Administrar datos → Nuevo grupo) eliges entre **Case**, **Vidrio normal**, **Vidrio 9D** y **Vidrio privacy**. En el formulario puedes cambiar la clase.
+- **Al buscar**, en la pestaña **Vidrio templado** aparecen tres botones: **Normal**, **9D** y **Privacy**, cada uno con la cantidad de modelos. Se muestra primero la clase que tenga datos.
+- Los grupos de vidrio que ya tenías quedan como **Normal**. Si alguno es 9D o privacy, ábrelo, cambia la clase y guarda.
+
+### Marca al agregar modelos
+
+En el formulario de un grupo (Case o Vidrio) hay una sección **Marca**. Elige la marca una vez (por ejemplo **Samsung**) y escribe solo los modelos, separados por coma: `A54, A55, A34`. Todos quedan guardados como Samsung.
+
+- Puedes cambiar de marca antes de agregar los siguientes modelos. Cada modelo muestra su marca debajo del nombre.
+- Con **Automática** la marca se deduce del nombre (iPhone → Apple, Galaxy → Samsung…).
+- Si escribes `A54` con Samsung elegido y ya existe **Galaxy A54** (y es el único que termina en A54), se usa ese en lugar de crear otro.
+- La nota va después de la lista de modelos y el nombre del grupo, al final, es opcional.
 
 ### Importar y exportar (administrador)
 
 **Importar** acepta **CSV** o **Excel (.xlsx)** con estas columnas:
 
-| tipo | grupo | modelo | nota |
-|---|---|---|---|
-| Case | Case grupo iPhone 13/14/15 | iPhone 13 | La cámara del 15 queda un poco justa |
-| Case | Case grupo iPhone 13/14/15 | iPhone 14 | |
-| Vidrio templado | Vidrio grupo A54/A55 | Galaxy A54 | |
+| tipo | grupo | modelo | nota | marca | variante |
+|---|---|---|---|---|---|
+| Case | Case grupo iPhone 13/14/15 | iPhone 13 | La cámara del 15 queda un poco justa | Apple | |
+| Case | Case grupo iPhone 13/14/15 | iPhone 14 | | Apple | |
+| Vidrio templado | Vidrio 9D A54/A55 | Galaxy A54 | | Samsung | 9D |
 
 - Una fila por modelo. Las filas con el mismo tipo y grupo forman un grupo.
 - **tipo**: `Case` o `Vidrio templado` (también acepta "funda", "vidrio", "mica", "glass"…). La **nota** basta con escribirla en una fila del grupo.
-- Columna opcional **marca**. Con encabezados, las columnas pueden ir en cualquier orden. Separador coma o punto y coma.
+- Columnas opcionales: **marca** y **variante** (`Normal`, `9D` o `Privacy`, solo para vidrio templado; si falta, es Normal). También se reconoce en la columna tipo: `Vidrio 9D`, `Vidrio privacy`. Los archivos de la versión anterior se siguen pudiendo importar.
+- Con encabezados, las columnas pueden ir en cualquier orden. Separador coma o punto y coma.
 - Al importar eliges **Agregar a los datos actuales** o **Reemplazar todo**. El formato antiguo `.xls` no está soportado.
 
 Hay un ejemplo en [`docs/ejemplo_importacion.csv`](docs/ejemplo_importacion.csv). **Exportar** guarda todo en CSV o Excel con el mismo formato, así que el respaldo se puede volver a importar.

@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
 import com.casematch.app.model.GroupType
+import com.casematch.app.model.GroupVariant
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -63,8 +64,8 @@ interface CompatDao {
     )
     fun observeGroupsForModel(modelId: Long): Flow<List<GroupWithModels>>
 
-    @Query("SELECT * FROM groups WHERE type = :type AND name = :name COLLATE NOCASE LIMIT 1")
-    suspend fun findGroup(type: GroupType, name: String): CompatGroup?
+    @Query("SELECT * FROM groups WHERE type = :type AND variant = :variant AND name = :name COLLATE NOCASE LIMIT 1")
+    suspend fun findGroup(type: GroupType, variant: GroupVariant, name: String): CompatGroup?
 
     @Query("SELECT COUNT(*) FROM groups")
     fun observeGroupCount(): Flow<Int>

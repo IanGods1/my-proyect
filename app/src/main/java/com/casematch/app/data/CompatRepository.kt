@@ -4,7 +4,10 @@ import androidx.room.withTransaction
 import com.casematch.app.io.ImportRow
 import com.casematch.app.io.TableImporter
 import com.casematch.app.model.GroupType
+import com.casematch.app.model.GroupVariant
+import com.casematch.app.model.ModelInput
 import com.casematch.app.util.BrandDetector
+import com.casematch.app.util.GroupNaming
 import com.casematch.app.util.TextNormalizer
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
@@ -41,14 +44,23 @@ class CompatRepository(private val db: AppDatabase) {
 
     // ---------------------------------------------------------------- Modelos
 
-    /** Busca el modelo por su clave normalizada; si no existe, lo crea. Devuelve (modelo, ¿nuevo?). */
-    private suspend fun getOrCreateModel(rawName: String, rawBrand: String?): Pair<PhoneModel, Boolean> {
+    /**
+     * Busca el modelo por su clave normalizada; si no existe, lo crea. Devuelve (modelo, ¿nuevo?).
+     * [overrideBrand]: true (importación) cambia la marca de un modelo ya registrado si el archivo
+     * trae otra; false (formulario) solo la completa cuando el modelo estaba en "Otras".
+     */
+    private suspend fun getOrCreateModel(
+        rawName: String,
+        rawBrand: String?,
+        overrideBrand: Boolean = true,
+    ): Pair<PhoneModel, Boolean> {
         val name = TextNormalizer.clean(rawName)
         val normalized = TextNormalizer.normalize(name)
         val brand = rawBrand?.let { BrandDetector.canonical(it) }.orEmpty()
         val existing = dao.findModelByNormalized(normalized)
         if (existing != null) {
-            if (brand.isNotEmpty() && brand != existing.brand) {
+            val canChange = overrideBrand || existing.brand == BrandDetector.OTHER
+            if (brand.isNotEmpty() && brand != existing.brand && canChange) {
                 val updated = existing.copy(brand = brand)
                 dao.updateModel(updated)
                 return updated to false
@@ -105,39 +117,45 @@ class CompatRepository(private val db: AppDatabase) {
     suspend fun saveGroup(
         id: Long?,
         type: GroupType,
+        variant: GroupVariant,
         rawName: String,
         rawNote: String,
-        modelNames: List<String>,
-    ): String? = mutate { saveGroupInternal(id, type, rawName, rawNote, modelNames) }
+        models: List<ModelInput>,
+    ): String? = mutate { saveGroupInternal(id, type, variant, rawName, rawNote, models) }
 
     private suspend fun saveGroupInternal(
         id: Long?,
         type: GroupType,
+        variant: GroupVariant,
         rawName: String,
         rawNote: String,
-        modelNames: List<String>,
+        modelInputs: List<ModelInput>,
     ): String? {
-        val models = modelNames.map { TextNormalizer.clean(it) }
-            .filter { TextNormalizer.normalize(it).isNotEmpty() }
-            .distinctBy { TextNormalizer.normalize(it) }
+        // Solo el vidrio templado tiene clase (Normal, 9D, Privacy).
+        val groupVariant = if (type == GroupType.GLASS) variant else GroupVariant.NORMAL
+        val models = modelInputs
+            .map { ModelInput(TextNormalizer.clean(it.name), BrandDetector.canonical(it.brand)) }
+            .filter { TextNormalizer.normalize(it.name).isNotEmpty() }
+            .distinctBy { TextNormalizer.normalize(it.name) }
         if (models.isEmpty()) return "Agrega al menos un modelo al grupo"
-        val name = TextNormalizer.clean(rawName).ifEmpty { defaultGroupName(type, models) }
+        val name = TextNormalizer.clean(rawName).ifEmpty { GroupNaming.defaultName(type, groupVariant, models) }
         val note = rawNote.trim()
 
         return db.withTransaction {
-            val duplicate = dao.findGroup(type, name)
+            val duplicate = dao.findGroup(type, groupVariant, name)
             if (duplicate != null && duplicate.id != id) {
-                return@withTransaction "Ya existe un grupo de ${type.label} llamado \"$name\""
+                val kind = if (type == GroupType.GLASS) groupVariant.fullLabel else type.label
+                return@withTransaction "Ya existe un grupo de $kind llamado \"$name\""
             }
             val groupId = if (id == null) {
-                dao.insertGroup(CompatGroup(type = type, name = name, note = note))
+                dao.insertGroup(CompatGroup(type = type, variant = groupVariant, name = name, note = note))
             } else {
-                dao.updateGroup(CompatGroup(id = id, type = type, name = name, note = note))
+                dao.updateGroup(CompatGroup(id = id, type = type, variant = groupVariant, name = name, note = note))
                 id
             }
             dao.deleteRefsForGroup(groupId)
             for (m in models) {
-                val model = getOrCreateModel(m, null).first
+                val model = getOrCreateModel(m.name, m.brand.ifEmpty { null }, overrideBrand = false).first
                 dao.insertRef(GroupModelCrossRef(groupId = groupId, modelId = model.id))
             }
             null
@@ -175,15 +193,15 @@ class CompatRepository(private val db: AppDatabase) {
             val type = row.type ?: continue
             if (row.group.isBlank()) continue
 
-            val key = type.name + "|" + TextNormalizer.normalize(row.group)
+            val key = type.name + "|" + row.variant.name + "|" + TextNormalizer.normalize(row.group)
             var groupId = groupIds[key]
             if (groupId == null) {
-                val existing = dao.findGroup(type, row.group)
+                val existing = dao.findGroup(type, row.variant, row.group)
                 groupId = if (existing != null) {
                     existing.id
                 } else {
                     newGroups++
-                    dao.insertGroup(CompatGroup(type = type, name = row.group, note = ""))
+                    dao.insertGroup(CompatGroup(type = type, variant = row.variant, name = row.group, note = ""))
                 }
                 groupIds[key] = groupId
             }
@@ -204,13 +222,14 @@ class CompatRepository(private val db: AppDatabase) {
         val usedModelIds = mutableSetOf<Long>()
         for (g in groups) {
             for (m in g.models.sortedBy { it.name.lowercase() }) {
-                table += listOf(g.group.type.label, g.group.name, m.name, g.group.note, m.brand)
+                val variant = if (g.group.type == GroupType.GLASS) g.group.variant.label else ""
+                table += listOf(g.group.type.label, g.group.name, m.name, g.group.note, m.brand, variant)
                 usedModelIds += m.id
             }
         }
         // Modelos que no pertenecen a ningún grupo (para que el respaldo esté completo).
         for (m in dao.getModels()) {
-            if (m.id !in usedModelIds) table += listOf("", "", m.name, "", m.brand)
+            if (m.id !in usedModelIds) table += listOf("", "", m.name, "", m.brand, "")
         }
         return table
     }
@@ -223,16 +242,18 @@ class CompatRepository(private val db: AppDatabase) {
         saveGroupInternal(
             id = null,
             type = GroupType.CASE,
+            variant = GroupVariant.NORMAL,
             rawName = "Case grupo iPhone 13/14/15",
             rawNote = "La cámara del 15 queda un poco justa",
-            modelNames = listOf("iPhone 13", "iPhone 14", "iPhone 15"),
+            modelInputs = listOf("iPhone 13", "iPhone 14", "iPhone 15").map { ModelInput(it) },
         )
         saveGroupInternal(
             id = null,
             type = GroupType.GLASS,
+            variant = GroupVariant.NORMAL,
             rawName = "Vidrio grupo iPhone 12/12 Pro/13/13 Pro/14",
             rawNote = "Pantalla de 6,1\". Verificar el recorte de la cámara frontal antes de vender.",
-            modelNames = listOf("iPhone 12", "iPhone 12 Pro", "iPhone 13", "iPhone 13 Pro", "iPhone 14"),
+            modelInputs = listOf("iPhone 12", "iPhone 12 Pro", "iPhone 13", "iPhone 13 Pro", "iPhone 14").map { ModelInput(it) },
         )
         Unit
     }
@@ -246,7 +267,7 @@ class CompatRepository(private val db: AppDatabase) {
         }
         val refsByGroup = dao.getRefs().groupBy({ it.groupId }, { it.modelId.toString() })
         val groups = dao.getGroups().associate { g ->
-            g.id.toString() to CloudSnapshot.groupFields(g.type.name, g.name, g.note, refsByGroup[g.id].orEmpty())
+            g.id.toString() to CloudSnapshot.groupFields(g.type.name, g.variant.name, g.name, g.note, refsByGroup[g.id].orEmpty())
         }
         return CloudSnapshot(models, groups)
     }
@@ -276,7 +297,14 @@ class CompatRepository(private val db: AppDatabase) {
         val groups = snapshot.groups.mapNotNull { (id, f) ->
             val longId = id.toLongOrNull() ?: return@mapNotNull null
             val type = GroupType.entries.firstOrNull { it.name == f["type"] } ?: GroupType.CASE
-            CompatGroup(id = longId, type = type, name = f["name"] as? String ?: "", note = f["note"] as? String ?: "")
+            val variant = GroupVariant.entries.firstOrNull { it.name == f["variant"] } ?: GroupVariant.NORMAL
+            CompatGroup(
+                id = longId,
+                type = type,
+                variant = variant,
+                name = f["name"] as? String ?: "",
+                note = f["note"] as? String ?: "",
+            )
         }
         dao.insertGroups(groups)
         val refs = snapshot.groups.flatMap { (id, f) ->
@@ -287,10 +315,5 @@ class CompatRepository(private val db: AppDatabase) {
                 .map { GroupModelCrossRef(groupId = groupId, modelId = it) }
         }
         dao.insertRefs(refs)
-    }
-
-    companion object {
-        fun defaultGroupName(type: GroupType, models: List<String>): String =
-            (if (type == GroupType.CASE) "Case grupo " else "Vidrio grupo ") + models.joinToString("/")
     }
 }

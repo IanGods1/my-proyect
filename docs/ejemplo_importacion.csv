@@ -1,9 +1,13 @@
-tipo,grupo,modelo,nota
-Case,Case grupo iPhone 13/14/15,iPhone 13,La cámara del 15 queda un poco justa
-Case,Case grupo iPhone 13/14/15,iPhone 14,
-Case,Case grupo iPhone 13/14/15,iPhone 15,
-Vidrio templado,Vidrio grupo iPhone 12/12 Pro/13/13 Pro/14,iPhone 12,Verificar el recorte de la cámara frontal
-Vidrio templado,Vidrio grupo iPhone 12/12 Pro/13/13 Pro/14,iPhone 12 Pro,
-Vidrio templado,Vidrio grupo iPhone 12/12 Pro/13/13 Pro/14,iPhone 13,
-Vidrio templado,Vidrio grupo iPhone 12/12 Pro/13/13 Pro/14,iPhone 13 Pro,
-Vidrio templado,Vidrio grupo iPhone 12/12 Pro/13/13 Pro/14,iPhone 14,
+tipo,grupo,modelo,nota,marca,variante
+Case,Case grupo iPhone 13/14/15,iPhone 13,La cámara del 15 queda un poco justa,Apple,
+Case,Case grupo iPhone 13/14/15,iPhone 14,,Apple,
+Case,Case grupo iPhone 13/14/15,iPhone 15,,Apple,
+Vidrio templado,Vidrio normal iPhone 12/13/14,iPhone 12,Verificar el recorte de la cámara frontal,Apple,Normal
+Vidrio templado,Vidrio normal iPhone 12/13/14,iPhone 13,,Apple,Normal
+Vidrio templado,Vidrio normal iPhone 12/13/14,iPhone 14,,Apple,Normal
+Vidrio templado,Vidrio 9D iPhone 13/14,iPhone 13,,Apple,9D
+Vidrio templado,Vidrio 9D iPhone 13/14,iPhone 14,,Apple,9D
+Vidrio templado,Vidrio privacy iPhone 13/14,iPhone 13,,Apple,Privacy
+Vidrio templado,Vidrio privacy iPhone 13/14,iPhone 14,,Apple,Privacy
+Case,Case Samsung A54/A55,A54,,Samsung,
+Case,Case Samsung A54/A55,A55,,Samsung,

@@ -15,7 +15,7 @@ enum class GroupType(val label: String) {
         fun parse(text: String): GroupType? {
             val n = TextNormalizer.normalize(text)
             if (n.isEmpty()) return null
-            val glassWords = listOf("vidrio", "templado", "mica", "glass", "protector", "cristal")
+            val glassWords = listOf("vidrio", "templado", "mica", "glass", "protector", "cristal", "9d", "privacy", "privad")
             val caseWords = listOf("case", "funda", "carcasa", "cover", "estuche")
             return when {
                 glassWords.any { n.contains(it) } -> GLASS

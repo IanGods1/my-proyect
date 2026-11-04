@@ -11,6 +11,7 @@ import com.casematch.app.auth.AuthManager
 import com.casematch.app.auth.Role
 import com.casematch.app.data.CompatRepository
 import com.casematch.app.model.GroupType
+import com.casematch.app.model.GroupVariant
 import com.casematch.app.ui.screens.admin.AdminScreen
 import com.casematch.app.ui.screens.group.GroupEditScreen
 import com.casematch.app.ui.screens.home.HomeScreen
@@ -25,11 +26,13 @@ private object Routes {
     const val ADMIN_MODELS = "admin_models"
     const val SETTINGS = "settings"
     const val RESULT = "result/{modelId}"
-    const val GROUP = "group/{groupId}?type={type}"
+    const val GROUP = "group/{groupId}?type={type}&variant={variant}"
 
     fun result(modelId: Long) = "result/$modelId"
-    fun group(groupId: Long?, type: GroupType? = null) =
-        "group/${groupId ?: -1L}" + (type?.let { "?type=${it.name}" } ?: "")
+    fun group(groupId: Long?, type: GroupType? = null, variant: GroupVariant? = null): String {
+        val args = listOfNotNull(type?.let { "type=${it.name}" }, variant?.let { "variant=${it.name}" })
+        return "group/${groupId ?: -1L}" + if (args.isEmpty()) "" else "?" + args.joinToString("&")
+    }
 }
 
 /**
@@ -103,7 +106,7 @@ fun AppNavHost(
             AdminScreen(
                 repository = repository,
                 onBack = back,
-                onNewGroup = { type -> nav.navigate(Routes.group(null, type)) },
+                onNewGroup = { type, variant -> nav.navigate(Routes.group(null, type, variant)) },
                 onEditGroup = { nav.navigate(Routes.group(it)) },
                 onManageModels = { nav.navigate(Routes.ADMIN_MODELS) },
             )
@@ -117,14 +120,22 @@ fun AppNavHost(
                     nullable = true
                     defaultValue = null
                 },
+                navArgument("variant") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
             ),
         ) { entry ->
             val groupId = entry.arguments?.getLong("groupId") ?: -1L
             val type = entry.arguments?.getString("type")
                 ?.let { t -> GroupType.entries.firstOrNull { it.name == t } }
+            val variant = entry.arguments?.getString("variant")
+                ?.let { v -> GroupVariant.entries.firstOrNull { it.name == v } }
             GroupEditScreen(
                 groupId = groupId.takeIf { it > 0 },
                 initialType = type ?: GroupType.CASE,
+                initialVariant = variant ?: GroupVariant.NORMAL,
                 repository = repository,
                 onDone = back,
             )

@@ -1,9 +1,12 @@
 package com.casematch.app.ui.screens.group
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,11 +28,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -48,21 +51,26 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.casematch.app.data.CompatRepository
-import com.casematch.app.data.CompatRepository.Companion.defaultGroupName
 import com.casematch.app.model.GroupType
+import com.casematch.app.model.GroupVariant
 import com.casematch.app.ui.components.AppTopBar
 import com.casematch.app.ui.components.BigButton
+import com.casematch.app.ui.components.ChoiceRow
 import com.casematch.app.ui.components.ConfirmDialog
+import com.casematch.app.util.BrandDetector
+import com.casematch.app.util.GroupNaming
 
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun GroupEditScreen(
     groupId: Long?,
     initialType: GroupType,
+    initialVariant: GroupVariant,
     repository: CompatRepository,
     onDone: () -> Unit,
 ) {
     val vm: GroupEditViewModel = viewModel(key = "group-${groupId ?: "new"}") {
-        GroupEditViewModel(groupId, initialType, repository)
+        GroupEditViewModel(groupId, initialType, initialVariant, repository)
     }
     val allModels by vm.allModels.collectAsStateWithLifecycle()
     var confirmDelete by remember { mutableStateOf(false) }
@@ -103,38 +111,57 @@ fun GroupEditScreen(
         ) {
             // ---- Tipo
             SectionTitle("Tipo")
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                GroupType.entries.forEach { t ->
-                    val selected = vm.type == t
-                    val m = Modifier.weight(1f).heightIn(min = 60.dp)
-                    val shape = RoundedCornerShape(16.dp)
-                    if (selected) {
-                        Button(onClick = { vm.type = t }, modifier = m, shape = shape) {
-                            Text(t.label, style = MaterialTheme.typography.titleMedium)
-                        }
-                    } else {
-                        OutlinedButton(onClick = { vm.type = t }, modifier = m, shape = shape) {
-                            Text(t.label, style = MaterialTheme.typography.titleMedium)
-                        }
-                    }
-                }
+            ChoiceRow(
+                options = GroupType.entries.toList(),
+                selected = vm.type,
+                label = { it.label },
+                onSelect = { vm.type = it },
+            )
+
+            // ---- Clase de vidrio (solo vidrio templado)
+            if (vm.type == GroupType.GLASS) {
+                SectionTitle("Clase de vidrio")
+                ChoiceRow(
+                    options = GroupVariant.entries.toList(),
+                    selected = vm.variant,
+                    label = { it.label },
+                    onSelect = { vm.variant = it },
+                )
             }
 
-            // ---- Nombre
+            // ---- Marca
+            SectionTitle("Marca")
             OutlinedTextField(
-                value = vm.name,
-                onValueChange = { vm.name = it },
-                label = { Text("Nombre del grupo") },
-                placeholder = {
-                    Text(
-                        if (vm.models.isEmpty()) "ej. Case grupo iPhone 13/14/15"
-                        else defaultGroupName(vm.type, vm.models)
-                    )
-                },
-                supportingText = { Text("Si lo dejas vacío se genera con los modelos") },
+                value = vm.brand,
+                onValueChange = { vm.brand = it },
+                label = { Text("Marca de los modelos que vas a agregar") },
+                placeholder = { Text("Automática (según el nombre)") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                FilterChip(
+                    selected = vm.brand.isBlank(),
+                    onClick = { vm.brand = "" },
+                    label = { Text("Automática") },
+                )
+                vm.brandOptions(allModels).forEach { b ->
+                    FilterChip(
+                        selected = BrandDetector.canonical(vm.brand) == b,
+                        onClick = { vm.brand = b },
+                        label = { Text(b) },
+                    )
+                }
+            }
+            Text(
+                "Elige la marca una vez y escribe solo los modelos (ej. A54, A55). " +
+                    "Puedes cambiar de marca antes de agregar los siguientes.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
             // ---- Modelos
@@ -144,7 +171,7 @@ fun GroupEditScreen(
                     value = vm.modelInput,
                     onValueChange = { vm.modelInput = it },
                     label = { Text("Agregar modelo") },
-                    placeholder = { Text("ej. iPhone 14") },
+                    placeholder = { Text("ej. A54") },
                     singleLine = true,
                     modifier = Modifier.weight(1f),
                     keyboardOptions = KeyboardOptions(
@@ -164,7 +191,7 @@ fun GroupEditScreen(
                 }
             }
             Text(
-                "Puedes escribir varios separados por coma: iPhone 13, iPhone 14",
+                "Puedes escribir varios separados por coma: A54, A55",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -204,15 +231,22 @@ fun GroupEditScreen(
             } else {
                 Card(shape = RoundedCornerShape(16.dp)) {
                     Column {
-                        vm.models.forEachIndexed { i, name ->
+                        vm.models.forEachIndexed { i, model ->
                             if (i > 0) HorizontalDivider()
                             Row(
                                 Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Text(name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-                                IconButton(onClick = { vm.removeModel(name) }) {
-                                    Icon(Icons.Filled.Close, contentDescription = "Quitar $name")
+                                Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
+                                    Text(model.name, style = MaterialTheme.typography.titleMedium)
+                                    Text(
+                                        model.brand.ifBlank { BrandDetector.detect(model.name) },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                IconButton(onClick = { vm.removeModel(model) }) {
+                                    Icon(Icons.Filled.Close, contentDescription = "Quitar ${model.name}")
                                 }
                             }
                         }
@@ -227,6 +261,23 @@ fun GroupEditScreen(
                 label = { Text("Nota (opcional)") },
                 placeholder = { Text("ej. La cámara del 15 queda un poco justa") },
                 minLines = 2,
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+            )
+
+            // ---- Nombre del grupo (opcional: se genera solo)
+            OutlinedTextField(
+                value = vm.name,
+                onValueChange = { vm.name = it },
+                label = { Text("Nombre del grupo (opcional)") },
+                placeholder = {
+                    Text(
+                        if (vm.models.isEmpty()) "Se genera solo con los modelos"
+                        else GroupNaming.defaultName(vm.type, vm.variant, vm.models.toList())
+                    )
+                },
+                supportingText = { Text("Si lo dejas vacío se genera con los modelos") },
+                singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
             )

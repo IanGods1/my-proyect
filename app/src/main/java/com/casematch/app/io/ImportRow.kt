@@ -1,6 +1,7 @@
 package com.casematch.app.io
 
 import com.casematch.app.model.GroupType
+import com.casematch.app.model.GroupVariant
 import com.casematch.app.util.TextNormalizer
 
 /** Una fila de datos importada (tipo, grupo, modelo, nota y opcionalmente marca). */
@@ -10,6 +11,8 @@ data class ImportRow(
     val model: String,
     val note: String,
     val brand: String,
+    /** Clase de vidrio (solo para grupos de vidrio templado). */
+    val variant: GroupVariant = GroupVariant.NORMAL,
 )
 
 data class ParsedImport(
@@ -19,11 +22,13 @@ data class ParsedImport(
 
 /**
  * Convierte una tabla (de CSV o Excel) en filas de importación.
- * Columnas: tipo, grupo, modelo, nota (y opcional: marca).
+ * Columnas: tipo, grupo, modelo, nota (y opcionales: marca, variante).
+ * La variante (Normal, 9D, Privacy) solo aplica a vidrio templado; también se reconoce
+ * si viene en la columna tipo ("Vidrio 9D").
  * Si la primera fila tiene encabezados, las columnas se reconocen por nombre en cualquier orden.
  */
 object TableImporter {
-    val HEADER = listOf("tipo", "grupo", "modelo", "nota", "marca")
+    val HEADER = listOf("tipo", "grupo", "modelo", "nota", "marca", "variante")
 
     private val aliases = mapOf(
         "tipo" to listOf("tipo", "type", "categoria"),
@@ -31,6 +36,7 @@ object TableImporter {
         "modelo" to listOf("modelo", "model", "modelos", "telefono", "celular"),
         "nota" to listOf("nota", "notas", "note", "observacion", "observaciones", "comentario"),
         "marca" to listOf("marca", "brand", "fabricante"),
+        "variante" to listOf("variante", "variant", "clase", "subtipo", "tipodevidrio", "clasedevidrio"),
     )
 
     fun parse(table: List<List<String>>): ParsedImport {
@@ -40,7 +46,7 @@ object TableImporter {
         val first = rows.first().map { TextNormalizer.normalize(it) }
         val hasHeader = first.any { cell -> aliases.getValue("tipo").contains(cell) || aliases.getValue("modelo").contains(cell) }
 
-        val index = mutableMapOf("tipo" to 0, "grupo" to 1, "modelo" to 2, "nota" to 3, "marca" to 4)
+        val index = mutableMapOf("tipo" to 0, "grupo" to 1, "modelo" to 2, "nota" to 3, "marca" to 4, "variante" to 5)
         if (hasHeader) {
             for (key in index.keys.toList()) {
                 index[key] = first.indexOfFirst { aliases.getValue(key).contains(it) }
@@ -65,6 +71,7 @@ object TableImporter {
             val model = cell("modelo")
             val note = cell("nota")
             val brand = cell("marca")
+            val variantText = cell("variante")
 
             if (model.isEmpty()) {
                 if (typeText.isNotEmpty() || group.isNotEmpty()) errors += "Fila $line: falta el modelo"
@@ -81,7 +88,12 @@ object TableImporter {
                 else "Fila $line: tipo desconocido \"$typeText\" (usa Case o Vidrio templado)"
                 return@forEachIndexed
             }
-            result += ImportRow(type, group, model, note, brand)
+            val variant = if (type == GroupType.GLASS) {
+                GroupVariant.parse(variantText) ?: GroupVariant.parse(typeText) ?: GroupVariant.NORMAL
+            } else {
+                GroupVariant.NORMAL
+            }
+            result += ImportRow(type, group, model, note, brand, variant)
         }
         return ParsedImport(result, errors)
     }

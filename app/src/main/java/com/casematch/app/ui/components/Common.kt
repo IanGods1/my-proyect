@@ -3,6 +3,8 @@ package com.casematch.app.ui.components
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -229,4 +231,37 @@ fun PasswordField(
             TextButton(onClick = { visible = !visible }) { Text(if (visible) "Ocultar" else "Mostrar") }
         },
     )
+}
+
+/**
+ * Fila de botones grandes para elegir una opción (la elegida va rellena).
+ * [sublabel] muestra una segunda línea pequeña bajo el nombre (por ejemplo, la cantidad de modelos).
+ */
+@Composable
+fun <T> ChoiceRow(
+    options: List<T>,
+    selected: T,
+    label: (T) -> String,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier,
+    sublabel: (T) -> String? = { null },
+) {
+    val shape = RoundedCornerShape(16.dp)
+    val padding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        options.forEach { option ->
+            val content: @Composable RowScope.() -> Unit = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(label(option), style = MaterialTheme.typography.titleMedium, maxLines = 1)
+                    sublabel(option)?.let { Text(it, style = MaterialTheme.typography.bodyMedium, maxLines = 1) }
+                }
+            }
+            val m = Modifier.weight(1f).heightIn(min = 60.dp)
+            if (option == selected) {
+                Button(onClick = { onSelect(option) }, modifier = m, shape = shape, contentPadding = padding, content = content)
+            } else {
+                OutlinedButton(onClick = { onSelect(option) }, modifier = m, shape = shape, contentPadding = padding, content = content)
+            }
+        }
+    }
 }

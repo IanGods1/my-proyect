@@ -31,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -42,7 +43,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.casematch.app.data.CompatRepository
 import com.casematch.app.data.PhoneModel
 import com.casematch.app.model.GroupType
+import com.casematch.app.model.GroupVariant
 import com.casematch.app.ui.components.AppTopBar
+import com.casematch.app.ui.components.ChoiceRow
 import com.casematch.app.ui.components.EmptyState
 import com.casematch.app.ui.components.NoteBox
 
@@ -89,8 +92,29 @@ fun ResultScreen(
             }
 
             val type = types[tab]
-            val groups = state.groups(type)
-            val others = state.allOthers(type)
+
+            // Vidrio templado: tres opciones (Normal, 9D, Privacy). Si el trabajador todavía no
+            // eligió, se muestra la primera que tenga modelos compatibles.
+            var variantName by rememberSaveable { mutableStateOf<String?>(null) }
+            val variant = GroupVariant.entries.firstOrNull { it.name == variantName }
+                ?: GroupVariant.entries.firstOrNull { state.othersOf(state.glassGroups(it)).isNotEmpty() }
+                ?: GroupVariant.NORMAL
+            if (type == GroupType.GLASS && !state.loading) {
+                ChoiceRow(
+                    options = GroupVariant.entries.toList(),
+                    selected = variant,
+                    label = { it.label },
+                    onSelect = { variantName = it.name },
+                    sublabel = { v ->
+                        val n = state.othersOf(state.glassGroups(v)).size
+                        if (n == 0) "sin datos" else if (n == 1) "1 modelo" else "$n modelos"
+                    },
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
+                )
+            }
+
+            val groups = if (type == GroupType.GLASS) state.glassGroups(variant) else state.groups(type)
+            val others = state.othersOf(groups)
             when {
                 state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
@@ -98,7 +122,7 @@ fun ResultScreen(
                 others.isEmpty() -> EmptyState(
                     text = "Sin compatibilidades registradas",
                     detail = if (type == GroupType.CASE) "No hay otros modelos que usen el mismo case."
-                    else "No hay otros modelos que usen el mismo vidrio templado.",
+                    else "No hay otros modelos que usen el mismo ${variant.fullLabel.replaceFirstChar { it.lowercase() }}.",
                     modifier = Modifier.padding(top = 32.dp),
                 )
                 else -> LazyColumn(
@@ -108,7 +132,7 @@ fun ResultScreen(
                     item {
                         Text(
                             if (type == GroupType.CASE) "El mismo case le queda a:"
-                            else "El mismo vidrio templado le queda a:",
+                            else "El mismo ${variant.fullLabel.replaceFirstChar { it.lowercase() }} le queda a:",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                         )

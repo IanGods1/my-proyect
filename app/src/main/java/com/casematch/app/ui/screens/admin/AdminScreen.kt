@@ -54,6 +54,7 @@ import com.casematch.app.data.CompatRepository
 import com.casematch.app.data.GroupWithModels
 import com.casematch.app.io.ParsedImport
 import com.casematch.app.model.GroupType
+import com.casematch.app.model.GroupVariant
 import com.casematch.app.ui.components.AppTopBar
 import com.casematch.app.ui.components.BigButton
 import com.casematch.app.ui.components.ConfirmDialog
@@ -64,7 +65,7 @@ import java.time.LocalDate
 fun AdminScreen(
     repository: CompatRepository,
     onBack: () -> Unit,
-    onNewGroup: (GroupType) -> Unit,
+    onNewGroup: (GroupType, GroupVariant) -> Unit,
     onEditGroup: (Long) -> Unit,
     onManageModels: () -> Unit,
 ) {
@@ -198,10 +199,14 @@ fun AdminScreen(
             title = { Text("¿Qué tipo de grupo?") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    GroupType.entries.forEach { t ->
-                        BigButton(text = t.label, onClick = {
+                    BigButton(text = "Case", onClick = {
+                        showNewGroupDialog = false
+                        onNewGroup(GroupType.CASE, GroupVariant.NORMAL)
+                    })
+                    GroupVariant.entries.forEach { v ->
+                        BigButton(text = v.fullLabel, onClick = {
                             showNewGroupDialog = false
-                            onNewGroup(t)
+                            onNewGroup(GroupType.GLASS, v)
                         })
                     }
                 }
@@ -271,7 +276,8 @@ private fun GroupItem(group: GroupWithModels, onClick: () -> Unit, onDelete: () 
                     shape = RoundedCornerShape(8.dp),
                 ) {
                     Text(
-                        group.group.type.label,
+                        if (group.group.type == GroupType.GLASS) "${group.group.type.label} · ${group.group.variant.label}"
+                        else group.group.type.label,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                         style = MaterialTheme.typography.labelLarge,
                     )
@@ -315,7 +321,7 @@ private fun ImportConfirmDialog(
         )
         return
     }
-    val groupCount = parsed.rows.filter { it.type != null }.map { it.type to it.group.lowercase() }.distinct().size
+    val groupCount = parsed.rows.filter { it.type != null }.map { Triple(it.type, it.variant, it.group.lowercase()) }.distinct().size
     val modelCount = parsed.rows.map { it.model.lowercase() }.distinct().size
     AlertDialog(
         onDismissRequest = onDismiss,

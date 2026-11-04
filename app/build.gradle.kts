@@ -26,8 +26,8 @@ android {
         applicationId = "com.casematch.app"
         minSdk = 26 // Android 8.0
         targetSdk = 35
-        versionCode = 2
-        versionName = "2.0"
+        versionCode = 3
+        versionName = "2.1"
     }
 
     // Clave de firma fija incluida en el proyecto: así cada APK compilado (en tu PC o en

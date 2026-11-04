@@ -28,6 +28,9 @@ object BrandDetector {
         "Nothing" to listOf("nothing"),
     )
 
+    /** Marcas conocidas, para ofrecerlas como opciones rápidas. */
+    val knownBrands: List<String> get() = rules.map { it.first }
+
     /** Orden preferido de las marcas en la lista de modelos. */
     private val preferredOrder = listOf("Apple", "Samsung", "Xiaomi", "Motorola")
 

@@ -9,6 +9,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Relation
 import androidx.room.TypeConverter
 import com.casematch.app.model.GroupType
+import com.casematch.app.model.GroupVariant
 
 /** Modelo de teléfono. [normalized] es la clave de búsqueda única ("iPhone 13" -> "iphone13"). */
 @Entity(tableName = "models", indices = [Index(value = ["normalized"], unique = true)])
@@ -26,6 +27,8 @@ data class CompatGroup(
     val type: GroupType,
     val name: String,
     val note: String = "",
+    /** Clase de vidrio (Normal, 9D, Privacy). En los grupos de Case siempre es NORMAL. */
+    val variant: GroupVariant = GroupVariant.NORMAL,
 )
 
 /** Relación grupo <-> modelo. Al guardarse como grupo, la compatibilidad funciona en ambos sentidos. */
@@ -59,4 +62,10 @@ class Converters {
 
     @TypeConverter
     fun toType(value: String): GroupType = GroupType.entries.firstOrNull { it.name == value } ?: GroupType.CASE
+
+    @TypeConverter
+    fun fromVariant(variant: GroupVariant): String = variant.name
+
+    @TypeConverter
+    fun toVariant(value: String): GroupVariant = GroupVariant.entries.firstOrNull { it.name == value } ?: GroupVariant.NORMAL
 }
