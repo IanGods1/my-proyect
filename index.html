@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#050a18">
+  <meta name="description" content="Control de precios de productos de Abarroterías San Vicenta">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="San Vicenta">
+  <title>Abarroterías San Vicenta</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <button id="btn-atras" class="btn-atras oculto" aria-label="Regresar">‹</button>
+    <div class="marca">
+      <span class="marca-icono">🛒</span>
+      <div>
+        <h1>Abarroterías San Vicenta</h1>
+        <p id="titulo-vista" class="subtitulo">Escanear producto</p>
+      </div>
+    </div>
+  </header>
+
+  <main id="contenido">
+    <!-- ============ ESCANEAR ============ -->
+    <section id="vista-escanear" class="vista">
+      <button id="btn-escanear" class="btn btn-primario btn-gigante">
+        <span class="btn-icono">📷</span>
+        Escanear código
+      </button>
+
+      <div class="tarjeta">
+        <label for="codigo-manual" class="etiqueta">¿No se puede escanear? Escriba el código:</label>
+        <form id="form-codigo-manual" class="fila-input" autocomplete="off">
+          <input id="codigo-manual" type="text" inputmode="numeric" placeholder="Ej. 7401234567890" class="input">
+          <button type="submit" class="btn btn-secundario">Buscar</button>
+        </form>
+      </div>
+
+      <button id="btn-nuevo-sin-codigo" class="btn btn-contorno">＋ Agregar producto sin escanear</button>
+
+      <div class="resumen" id="resumen"></div>
+    </section>
+
+    <!-- ============ PRODUCTOS ============ -->
+    <section id="vista-productos" class="vista oculto">
+      <div class="buscador">
+        <span class="buscador-icono">🔍</span>
+        <input id="buscar" type="search" placeholder="Buscar por nombre o código" class="input" autocomplete="off">
+      </div>
+      <div id="filtro-categorias" class="chips" role="tablist" aria-label="Filtrar por categoría"></div>
+      <p id="conteo-productos" class="conteo"></p>
+      <ul id="lista-productos" class="lista"></ul>
+      <button id="btn-agregar-producto" class="fab" aria-label="Agregar producto">＋</button>
+    </section>
+
+    <!-- ============ CATEGORÍAS ============ -->
+    <section id="vista-categorias" class="vista oculto">
+      <form id="form-nueva-categoria" class="fila-input tarjeta" autocomplete="off">
+        <input id="nueva-categoria" type="text" placeholder="Nueva categoría" class="input" maxlength="40">
+        <button type="submit" class="btn btn-primario">Agregar</button>
+      </form>
+      <ul id="lista-categorias" class="lista"></ul>
+    </section>
+
+    <!-- ============ RESPALDO ============ -->
+    <section id="vista-respaldo" class="vista oculto">
+      <div class="tarjeta">
+        <h2>Respaldo de datos</h2>
+        <p class="texto-suave">Sus productos se guardan en este teléfono y funcionan sin internet.
+          Para no perderlos si cambia de teléfono o borra el navegador, guarde un respaldo de vez en cuando.</p>
+        <button id="btn-exportar" class="btn btn-primario btn-bloque">⬇️ Guardar respaldo (archivo)</button>
+        <button id="btn-importar" class="btn btn-secundario btn-bloque">⬆️ Cargar respaldo</button>
+        <input id="archivo-importar" type="file" accept="application/json,.json" class="oculto">
+      </div>
+      <div class="tarjeta">
+        <h2>Información</h2>
+        <p id="info-datos" class="texto-suave"></p>
+      </div>
+    </section>
+
+    <!-- ============ DETALLE ============ -->
+    <section id="vista-detalle" class="vista oculto"></section>
+
+    <!-- ============ FORMULARIO ============ -->
+    <section id="vista-formulario" class="vista oculto">
+      <form id="form-producto" autocomplete="off" novalidate>
+        <label class="etiqueta" for="f-codigo">Código de barras</label>
+        <div class="fila-input">
+          <input id="f-codigo" type="text" inputmode="numeric" class="input" placeholder="Código de barras">
+          <button type="button" id="f-escanear" class="btn btn-secundario" aria-label="Escanear código">📷</button>
+        </div>
+
+        <label class="etiqueta" for="f-nombre">Nombre del producto *</label>
+        <input id="f-nombre" type="text" class="input" placeholder="Ej. Coca-Cola 600 ml" maxlength="80">
+
+        <div class="dos-columnas">
+          <div>
+            <label class="etiqueta" for="f-venta">Precio de venta *</label>
+            <div class="input-moneda">
+              <span>Q</span>
+              <input id="f-venta" type="text" inputmode="decimal" class="input" placeholder="0.00">
+            </div>
+          </div>
+          <div>
+            <label class="etiqueta" for="f-costo">Precio de costo</label>
+            <div class="input-moneda">
+              <span>Q</span>
+              <input id="f-costo" type="text" inputmode="decimal" class="input" placeholder="0.00">
+            </div>
+          </div>
+        </div>
+        <p id="f-ganancia" class="ganancia"></p>
+
+        <label class="etiqueta" for="f-lugar">Lugar de compra / proveedor</label>
+        <input id="f-lugar" type="text" class="input" placeholder="Ej. Distribuidora La Económica" list="lista-lugares" maxlength="60">
+        <datalist id="lista-lugares"></datalist>
+
+        <label class="etiqueta" for="f-categoria">Categoría</label>
+        <select id="f-categoria" class="input"></select>
+
+        <p id="f-error" class="error" role="alert"></p>
+
+        <button type="submit" class="btn btn-primario btn-bloque btn-grande">💾 Guardar</button>
+        <button type="button" id="f-cancelar" class="btn btn-contorno btn-bloque">Cancelar</button>
+      </form>
+    </section>
+  </main>
+
+  <!-- ============ NAVEGACIÓN ============ -->
+  <nav class="navbar">
+    <button class="nav-btn activo" data-vista="escanear"><span>📷</span>Escanear</button>
+    <button class="nav-btn" data-vista="productos"><span>📋</span>Productos</button>
+    <button class="nav-btn" data-vista="categorias"><span>🏷️</span>Categorías</button>
+    <button class="nav-btn" data-vista="respaldo"><span>💾</span>Respaldo</button>
+  </nav>
+
+  <!-- ============ CÁMARA ============ -->
+  <div id="escaner" class="escaner oculto" role="dialog" aria-label="Escáner de código de barras">
+    <video id="video" playsinline muted></video>
+    <div class="escaner-marco"><div class="escaner-linea"></div></div>
+    <p id="escaner-mensaje" class="escaner-mensaje">Apunte la cámara al código de barras</p>
+    <button id="btn-cerrar-escaner" class="btn btn-peligro btn-grande escaner-cerrar">✕ Cancelar</button>
+  </div>
+
+  <!-- ============ VENTANA EMERGENTE ============ -->
+  <div id="modal" class="modal oculto" role="dialog" aria-modal="true">
+    <div class="modal-caja">
+      <h2 id="modal-titulo"></h2>
+      <div id="modal-cuerpo"></div>
+      <div id="modal-botones" class="modal-botones"></div>
+    </div>
+  </div>
+
+  <div id="aviso" class="aviso" role="status" aria-live="polite"></div>
+
+  <script src="lib/zxing.min.js" defer></script>
+  <script src="js/app.js" defer></script>
+</body>
+</html>
