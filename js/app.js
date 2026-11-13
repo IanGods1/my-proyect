@@ -681,15 +681,70 @@ function renderFiltros() {
     .join('');
 }
 
+let modoBusqueda = 'nombre'; // 'nombre' | 'precio'
+
+const NUMERO_PRECIO = '(\\d+(?:\\.\\d{0,2})?|\\.\\d{1,2})';
+const PRECIO_SOLO = new RegExp(`^${NUMERO_PRECIO}$`);
+const PRECIO_RANGO = new RegExp(`^${NUMERO_PRECIO}\\s*(?:-|a|hasta)\\s*${NUMERO_PRECIO}$`);
+
+/**
+ * Convierte lo escrito en el buscador de precio en un rango [mínimo, máximo]:
+ * "8" → Q8.00 a Q8.99 · "8.50" → exacto · "5-10" o "5 a 10" → Q5.00 a Q10.00.
+ * Devuelve null si no es un precio válido.
+ */
+function rangoDePrecio(texto) {
+  const t = String(texto || '').toLowerCase().replace(/q/g, '').replace(/\s+/g, ' ').trim().replace(/,/g, '.');
+  if (!t) return null;
+  const rango = t.match(PRECIO_RANGO);
+  if (rango) {
+    let min = parseFloat(rango[1]);
+    let max = parseFloat(rango[2]);
+    if (min > max) [min, max] = [max, min];
+    return [min, max];
+  }
+  const solo = t.match(PRECIO_SOLO);
+  if (!solo) return null;
+  const n = parseFloat(solo[1]);
+  if (/\.\d/.test(solo[1])) return [n, n]; // con centavos: precio exacto
+  return [n, n + 0.99];                    // sin centavos: todo ese quetzal
+}
+
 function productosFiltrados() {
-  const texto = normalizar($('#buscar').value);
-  const textoCodigo = limpiarCodigo($('#buscar').value);
+  const escrito = $('#buscar').value;
+  const enCategoria = (p) => {
+    if (filtroCategoria === 'sin') return !categoriaPorId(p.categoriaId);
+    if (filtroCategoria !== 'todas') return p.categoriaId === filtroCategoria;
+    return true;
+  };
+
+  if (modoBusqueda === 'precio') {
+    const rango = rangoDePrecio(escrito);
+    const lista = datos.productos.filter((p) => enCategoria(p) && (!rango ||
+      (typeof p.precioVenta === 'number' && p.precioVenta >= rango[0] - 0.001 && p.precioVenta <= rango[1] + 0.001)));
+    // De menor a mayor precio
+    return ordenarPorNombre(lista).sort((a, b) => (a.precioVenta ?? 0) - (b.precioVenta ?? 0));
+  }
+
+  const texto = normalizar(escrito);
+  const textoCodigo = limpiarCodigo(escrito);
   return ordenarPorNombre(datos.productos.filter((p) => {
-    if (filtroCategoria === 'sin' && categoriaPorId(p.categoriaId)) return false;
-    if (filtroCategoria !== 'todas' && filtroCategoria !== 'sin' && p.categoriaId !== filtroCategoria) return false;
+    if (!enCategoria(p)) return false;
     if (!texto) return true;
     return normalizar(p.nombre).includes(texto) || (textoCodigo && (p.codigo || '').includes(textoCodigo));
   }));
+}
+
+function cambiarModoBusqueda(modo) {
+  if (modo === modoBusqueda) return;
+  modoBusqueda = modo;
+  $$('.selector-opcion').forEach((b) => b.classList.toggle('activo', b.dataset.modo === modo));
+  const input = $('#buscar');
+  input.value = '';
+  input.placeholder = modo === 'precio' ? 'Precio, ej. 8.50 o 5-10' : 'Buscar por nombre o código';
+  input.inputMode = modo === 'precio' ? 'decimal' : 'text';
+  $('#ayuda-precio').classList.toggle('oculto', modo !== 'precio');
+  renderListaProductos();
+  input.focus();
 }
 
 function renderListaProductos() {
@@ -711,8 +766,14 @@ function renderListaProductos() {
       : '<li class="vacio">Todavía no hay productos registrados.</li>';
     return;
   }
+  if (modoBusqueda === 'precio' && $('#buscar').value.trim() && !rangoDePrecio($('#buscar').value)) {
+    $('#lista-productos').innerHTML = '<li class="vacio">Escriba solo el precio, por ejemplo <strong>8.50</strong> o <strong>5-10</strong>.</li>';
+    return;
+  }
   if (!lista.length) {
-    $('#lista-productos').innerHTML = '<li class="vacio">No se encontraron productos.</li>';
+    $('#lista-productos').innerHTML = modoBusqueda === 'precio'
+      ? '<li class="vacio">No hay productos con ese precio de venta.</li>'
+      : '<li class="vacio">No se encontraron productos.</li>';
     return;
   }
   const acciones = (p) => (esAdmin() ? `
@@ -1364,6 +1425,7 @@ function conectarEventos() {
 
   // Lista de productos
   $('#buscar').addEventListener('input', renderListaProductos);
+  $$('.selector-opcion').forEach((b) => b.addEventListener('click', () => cambiarModoBusqueda(b.dataset.modo)));
   $('#filtro-categorias').addEventListener('click', (e) => {
     const chip = e.target.closest('.chip');
     if (!chip) return;

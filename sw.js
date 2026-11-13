@@ -1,6 +1,6 @@
 /* Guarda la app en el teléfono para que abra sin internet.
    Si cambia algún archivo de la app, suba el número de VERSION. */
-const VERSION = 'san-vicenta-v3';
+const VERSION = 'san-vicenta-v4';
 const ARCHIVOS = [
   './',
   './index.html',

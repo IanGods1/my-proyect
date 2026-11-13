@@ -103,10 +103,15 @@
 
     <!-- ============ PRODUCTOS ============ -->
     <section id="vista-productos" class="vista oculto">
+      <div class="selector-busqueda" role="tablist" aria-label="Buscar por">
+        <button class="selector-opcion activo" data-modo="nombre">Nombre o código</button>
+        <button class="selector-opcion" data-modo="precio">Precio (Q)</button>
+      </div>
       <div class="buscador">
         <span class="buscador-icono">🔍</span>
         <input id="buscar" type="search" placeholder="Buscar por nombre o código" class="input" autocomplete="off">
       </div>
+      <p id="ayuda-precio" class="ayuda-busqueda oculto">Escriba un precio de venta: <strong>8</strong> (de Q8.00 a Q8.99), <strong>8.50</strong> (exacto) o <strong>5-10</strong> (de Q5 a Q10).</p>
       <div id="filtro-categorias" class="chips" role="tablist" aria-label="Filtrar por categoría"></div>
       <p id="conteo-productos" class="conteo"></p>
       <ul id="lista-productos" class="lista"></ul>
