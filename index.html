@@ -96,6 +96,9 @@
         </form>
       </div>
 
+      <button id="btn-factura" class="btn btn-secundario btn-grande solo-admin">📄 Escanear factura del proveedor</button>
+      <input id="foto-factura" type="file" accept="image/*" class="oculto">
+
       <button id="btn-nuevo-sin-codigo" class="btn btn-contorno solo-admin">＋ Agregar producto sin escanear</button>
 
       <div class="resumen" id="resumen"></div>
@@ -144,6 +147,15 @@
       </div>
 
       <div class="tarjeta solo-admin">
+        <h2>📄 Lectura de facturas</h2>
+        <p class="texto-suave">Para leer facturas con foto se usa la inteligencia artificial de Anthropic.
+          Necesita una <strong>llave (API key)</strong> de su cuenta en console.anthropic.com.
+          La llave se guarda <strong>solo en este teléfono</strong>: no se sube a la nube y los trabajadores no la ven.</p>
+        <p id="estado-llave-ia" class="texto-suave"></p>
+        <button id="btn-llave-ia" class="btn btn-secundario btn-bloque">🔑 Poner llave</button>
+      </div>
+
+      <div class="tarjeta solo-admin">
         <h2>Respaldo de datos</h2>
         <p class="texto-suave">Los precios se guardan en la nube y se comparten con todos los usuarios.
           Puede guardar además una copia en un archivo, por seguridad.</p>
@@ -161,9 +173,19 @@
     <!-- ============ DETALLE ============ -->
     <section id="vista-detalle" class="vista oculto"></section>
 
+    <!-- ============ REVISAR FACTURA (admin) ============ -->
+    <section id="vista-factura" class="vista oculto"></section>
+
     <!-- ============ FORMULARIO (admin) ============ -->
     <section id="vista-formulario" class="vista oculto">
       <form id="form-producto" autocomplete="off" novalidate>
+        <div id="f-vincular" class="tarjeta vincular oculto">
+          <p><strong>¿Ya está registrado sin código?</strong><br>
+            <span class="texto-suave">Si este producto entró por una factura, elíjalo para ponerle este código de barras.</span></p>
+          <select id="f-vincular-producto" class="input"></select>
+          <button type="button" id="f-vincular-btn" class="btn btn-primario btn-bloque">🔗 Ponerle este código</button>
+        </div>
+
         <label class="etiqueta" for="f-codigo">Código de barras</label>
         <div class="fila-input">
           <input id="f-codigo" type="text" inputmode="numeric" class="input" placeholder="Código de barras">

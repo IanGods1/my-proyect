@@ -371,3 +371,29 @@ body.rol-trabajador .solo-admin { display: none !important; }
 .ayuda-busqueda { margin: -4px 2px 0; color: var(--texto-suave); font-size: 0.92rem; }
 .ayuda-busqueda strong { color: var(--texto); }
 .selector-opcion { white-space: nowrap; }
+
+/* Revisar factura */
+.linea-factura { gap: 6px; }
+.linea-factura.excluida { opacity: 0.45; }
+.linea-factura .etiqueta { margin-top: 6px; }
+.fila-check { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.05rem; }
+.fila-check input { width: 26px; height: 26px; accent-color: var(--azul); }
+.insignia { margin-left: auto; border-radius: 999px; padding: 2px 10px; font-size: 0.8rem; font-weight: 800; }
+.insignia.media { background: #3a2c00; color: var(--amarillo); border: 1px solid #6b5300; }
+.insignia.baja { background: #3a1015; color: var(--rojo); border: 1px solid #7a2630; }
+.pequeno { font-size: 0.85rem; margin: 2px 0 0; }
+.valor-fijo { font-size: 1.2rem; font-weight: 800; color: var(--verde); margin: 12px 0 0; }
+.advertencia { color: var(--amarillo); font-weight: 700; margin: 0; }
+.nota { background: var(--tarjeta-2); border-radius: 10px; padding: 8px 10px; margin: 6px 0 0; color: var(--texto-suave); font-size: 0.92rem; }
+.vincular { border-color: var(--azul); margin-bottom: 12px; }
+.vincular p { margin: 0; }
+.pasos { margin: 0 0 6px; padding-left: 22px; color: var(--texto-suave); }
+.pasos li { margin-bottom: 4px; }
+.pasos code { color: var(--texto); }
+.cargando {
+  width: 54px; height: 54px; margin: 10px auto 14px;
+  border: 5px solid var(--borde); border-top-color: var(--azul-claro); border-radius: 50%;
+  animation: girar 0.9s linear infinite;
+}
+@keyframes girar { to { transform: rotate(360deg); } }
+.modal-botones .btn:nth-child(3):last-child { grid-column: 1 / -1; }

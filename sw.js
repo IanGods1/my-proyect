@@ -1,12 +1,14 @@
 /* Guarda la app en el teléfono para que abra sin internet.
    Si cambia algún archivo de la app, suba el número de VERSION. */
-const VERSION = 'san-vicenta-v4';
+const VERSION = 'san-vicenta-v5';
 const ARCHIVOS = [
   './',
   './index.html',
   './css/styles.css',
   './js/app.js',
   './js/escaner.js',
+  './js/facturas.js',
+  './lib/anthropic.js',
   './lib/firebase.js',
   './lib/zxing.min.js',
   './manifest.webmanifest',

@@ -87,6 +87,37 @@ Crear, cambiar nombre y eliminar. Al eliminar una categoría, sus productos qued
 Los datos ya están en la nube, pero puede guardar una copia en un archivo
 (**Guardar respaldo**) y cargarla después (**Cargar respaldo**).
 
+### 📄 Facturas con foto (solo administradores)
+Le toma foto a la factura del proveedor y la app sube los **nombres de los productos** y su
+**precio de costo por unidad**. La lee la inteligencia artificial de Anthropic (Claude).
+
+**Configurar (una vez por teléfono de administrador):**
+1. Entre a **console.anthropic.com** y cree una cuenta.
+2. En **Billing**, cargue saldo (por ejemplo USD 5).
+3. En **API keys**, toque **Create key** y copie la llave (empieza con `sk-ant-`).
+4. En la app: ⚙️ **Ajustes → Lectura de facturas → 🔑 Poner llave**, péguela y toque **Guardar**.
+
+**Usar:**
+1. 📷 Escanear → **📄 Escanear factura del proveedor** → tome la foto (derecha, con buena luz).
+2. Espere de 20 a 60 segundos. Aparece la pantalla **Revisar factura**:
+   - **Productos ya registrados**: se actualiza su **costo** (le muestra si subió ▲ o bajó ▼).
+     El precio de venta **no se cambia**.
+   - **Productos nuevos**: se crean con nombre, costo, categoría y un **precio de venta sugerido
+     (costo + 25 %)** que puede cambiar ahí mismo o después.
+   - Corrija lo que haga falta, quite la ✓ de **Incluir** a lo que no quiera guardar y toque **Guardar**.
+3. Los productos nuevos quedan **sin código de barras**. La primera vez que escanee uno, la app le
+   pregunta **"¿Ya está registrado sin código?"**: elíjalo y toque **Ponerle este código**.
+
+La app **aprende** cómo escribe cada proveedor sus productos ("COCA COLA 600ML NR X12"), así que
+las siguientes facturas los reconoce mejor.
+
+**Costo:** se paga a Anthropic según el uso, aproximadamente **Q0.40 a Q1.20 por factura**.
+
+**Seguridad de la llave:** se guarda **solo en el teléfono** donde la puso (no en la nube ni en
+GitHub) y los trabajadores no la ven. Quien tenga ese teléfono desbloqueado podría sacarla, así que:
+en console.anthropic.com ponga un **límite de gasto mensual** (Limits) y, si pierde el teléfono,
+**borre la llave** allí (API keys → Delete) y cree otra.
+
 ---
 
 ## 💰 Costo
@@ -122,9 +153,11 @@ index.html             Pantallas (acceso, escanear, productos, categorías, ajus
 css/styles.css         Tema oscuro (negro + azul marino)
 js/app.js              Lógica: sesión y roles, datos en Firestore, pantallas, usuarios, respaldo
 js/escaner.js          Lector de códigos (BarcodeDetector nativo o ZXing)
+js/facturas.js         Lectura de facturas con Claude (se carga solo cuando un admin la usa)
 firestore.rules        Reglas de seguridad (pegar en la consola de Firebase)
 sw.js                  Service worker: guarda la app para usarla sin internet
 lib/firebase.js        Firebase (app, auth, firestore)
+lib/anthropic.js       SDK oficial de Anthropic (@anthropic-ai/sdk 1.8, generado con esbuild)
 lib/zxing.min.js       ZXing (licencia en lib/ZXING-LICENSE)
 ```
 
