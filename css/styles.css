@@ -224,7 +224,7 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
   position: fixed;
   left: 0; right: 0; bottom: 0;
   z-index: 10;
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
   background: rgba(3, 6, 15, 0.97);
   border-top: 1px solid var(--borde);
   padding-bottom: env(safe-area-inset-bottom);
@@ -287,3 +287,57 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 }
 .aviso.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
 #lista-productos { padding-bottom: 84px; }
+
+/* ============================================================
+   Acceso (administrador / trabajador) y permisos
+   ============================================================ */
+body.sin-sesion .solo-sesion { display: none !important; }
+body.sin-sesion { padding-bottom: 0; }
+body.rol-trabajador .solo-admin { display: none !important; }
+
+.pantalla-completa {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: calc(env(safe-area-inset-top) + 24px) 20px calc(env(safe-area-inset-bottom) + 24px);
+}
+.acceso-caja { width: 100%; max-width: 420px; }
+.acceso-logo { font-size: 4rem; text-align: center; }
+.acceso-titulo { text-align: center; font-size: 1.7rem; line-height: 1.2; margin: 6px 0 22px; }
+.acceso-subtitulo { font-size: 1.25rem; font-weight: 800; color: var(--azul-claro); margin: 0 0 6px; }
+.acceso-paso { display: flex; flex-direction: column; gap: 6px; }
+.acceso-paso .btn-bloque { margin-top: 8px; }
+.centrado { text-align: center; margin-bottom: 8px !important; }
+.btn-gigante-2 {
+  min-height: 110px; font-size: 1.4rem; margin-top: 10px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+}
+.btn-gigante-2 span { font-size: 2.4rem; }
+
+.chip-usuario {
+  margin-left: auto; flex-shrink: 0;
+  max-width: 34vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  background: var(--tarjeta-2); border: 1px solid var(--borde); border-radius: 999px;
+  padding: 6px 10px; font-size: 0.82rem; font-weight: 700; color: var(--texto-suave);
+}
+.banda {
+  background: #3a2c00; border: 1px solid var(--amarillo); color: var(--amarillo);
+  border-radius: 12px; padding: 10px 14px; font-weight: 700; font-size: 0.95rem; margin-bottom: 14px;
+}
+.etiqueta-rol { display: inline-block; border-radius: 999px; padding: 1px 10px; font-size: 0.8rem; font-weight: 800; }
+.etiqueta-rol.admin { background: #2b2350; color: #c9b8ff; border: 1px solid #5a47a8; }
+.etiqueta-rol.trabajador { background: var(--tarjeta-2); color: var(--azul-claro); border: 1px solid var(--borde); }
+.etiqueta-rol.inactivo { background: #3a1015; color: var(--rojo); border: 1px solid #7a2630; }
+.item.inactivo { opacity: 0.6; }
+.no-registrado { text-align: center; padding: 26px 16px; }
+.no-registrado .grande { font-size: 3.5rem; }
+.no-registrado h2 { font-size: 1.4rem; margin: 6px 0; }
+.codigo-grande { font-size: 1.3rem; font-weight: 800; letter-spacing: 1px; margin: 8px 0 12px; }
+.modal-caja .etiqueta:first-child { margin-top: 0; }
+.modal-caja .input + .etiqueta { margin-top: 12px; }
+#modal-cuerpo .error { margin-bottom: 0; }
+/* Encabezado: que el nombre del usuario no tape el título */
+.marca { flex: 1; min-width: 0; }
+.marca > div { min-width: 0; }
+.subtitulo { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip-usuario { margin-left: 4px; }

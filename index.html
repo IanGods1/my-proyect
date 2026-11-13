@@ -15,8 +15,58 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="css/styles.css">
 </head>
-<body>
-  <header class="topbar">
+<body class="sin-sesion">
+  <!-- ============ CARGANDO ============ -->
+  <div id="pantalla-cargando" class="pantalla-completa">
+    <div class="acceso-logo">🛒</div>
+    <p class="texto-suave">Cargando…</p>
+  </div>
+
+  <!-- ============ ACCESO ============ -->
+  <div id="pantalla-acceso" class="pantalla-completa oculto">
+    <div class="acceso-caja">
+      <div class="acceso-logo">🛒</div>
+      <h1 class="acceso-titulo">Abarroterías<br>San Vicenta</h1>
+
+      <!-- Elegir tipo de usuario -->
+      <div id="acceso-elegir" class="acceso-paso">
+        <p class="texto-suave centrado">¿Cómo desea entrar?</p>
+        <button class="btn btn-primario btn-gigante-2" data-rol="admin"><span>👑</span>Administrador</button>
+        <button class="btn btn-secundario btn-gigante-2" data-rol="trabajador"><span>👤</span>Trabajador</button>
+      </div>
+
+      <!-- Iniciar sesión -->
+      <form id="form-login" class="acceso-paso oculto" autocomplete="on" novalidate>
+        <p id="login-titulo" class="acceso-subtitulo"></p>
+        <label class="etiqueta" for="login-usuario">Usuario</label>
+        <input id="login-usuario" class="input" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username" placeholder="Ej. maria">
+        <label class="etiqueta" for="login-clave">Contraseña</label>
+        <input id="login-clave" class="input" type="password" autocomplete="current-password" placeholder="Contraseña">
+        <p id="login-error" class="error" role="alert"></p>
+        <button type="submit" class="btn btn-primario btn-bloque btn-grande">Entrar</button>
+        <button type="button" id="login-regresar" class="btn btn-contorno btn-bloque">‹ Regresar</button>
+      </form>
+
+      <!-- Primera vez: crear administrador principal -->
+      <form id="form-primer-admin" class="acceso-paso oculto" autocomplete="off" novalidate>
+        <p class="acceso-subtitulo">Bienvenido 👋</p>
+        <p class="texto-suave">Es la primera vez que se usa la app. Cree la cuenta del <strong>administrador principal</strong> (el dueño de la tienda).</p>
+        <label class="etiqueta" for="pa-nombre">Su nombre</label>
+        <input id="pa-nombre" class="input" type="text" maxlength="40" placeholder="Ej. Vicenta">
+        <label class="etiqueta" for="pa-usuario">Usuario (para entrar)</label>
+        <input id="pa-usuario" class="input" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="20" placeholder="Ej. vicenta">
+        <label class="etiqueta" for="pa-clave">Contraseña (mínimo 6 caracteres)</label>
+        <input id="pa-clave" class="input" type="password" autocomplete="new-password">
+        <label class="etiqueta" for="pa-clave2">Repita la contraseña</label>
+        <input id="pa-clave2" class="input" type="password" autocomplete="new-password">
+        <p id="pa-error" class="error" role="alert"></p>
+        <button type="submit" class="btn btn-primario btn-bloque btn-grande">Crear y entrar</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ APP ============ -->
+  <header class="topbar solo-sesion">
     <button id="btn-atras" class="btn-atras oculto" aria-label="Regresar">‹</button>
     <div class="marca">
       <span class="marca-icono">🛒</span>
@@ -25,9 +75,12 @@
         <p id="titulo-vista" class="subtitulo">Escanear producto</p>
       </div>
     </div>
+    <span id="chip-usuario" class="chip-usuario"></span>
   </header>
 
-  <main id="contenido">
+  <main id="contenido" class="solo-sesion">
+    <div id="banda-sin-internet" class="banda oculto">📴 Sin internet: viendo los últimos precios guardados</div>
+
     <!-- ============ ESCANEAR ============ -->
     <section id="vista-escanear" class="vista">
       <button id="btn-escanear" class="btn btn-primario btn-gigante">
@@ -43,7 +96,7 @@
         </form>
       </div>
 
-      <button id="btn-nuevo-sin-codigo" class="btn btn-contorno">＋ Agregar producto sin escanear</button>
+      <button id="btn-nuevo-sin-codigo" class="btn btn-contorno solo-admin">＋ Agregar producto sin escanear</button>
 
       <div class="resumen" id="resumen"></div>
     </section>
@@ -57,10 +110,10 @@
       <div id="filtro-categorias" class="chips" role="tablist" aria-label="Filtrar por categoría"></div>
       <p id="conteo-productos" class="conteo"></p>
       <ul id="lista-productos" class="lista"></ul>
-      <button id="btn-agregar-producto" class="fab" aria-label="Agregar producto">＋</button>
+      <button id="btn-agregar-producto" class="fab solo-admin" aria-label="Agregar producto">＋</button>
     </section>
 
-    <!-- ============ CATEGORÍAS ============ -->
+    <!-- ============ CATEGORÍAS (admin) ============ -->
     <section id="vista-categorias" class="vista oculto">
       <form id="form-nueva-categoria" class="fila-input tarjeta" autocomplete="off">
         <input id="nueva-categoria" type="text" placeholder="Nueva categoría" class="input" maxlength="40">
@@ -69,16 +122,31 @@
       <ul id="lista-categorias" class="lista"></ul>
     </section>
 
-    <!-- ============ RESPALDO ============ -->
-    <section id="vista-respaldo" class="vista oculto">
+    <!-- ============ AJUSTES ============ -->
+    <section id="vista-ajustes" class="vista oculto">
       <div class="tarjeta">
+        <h2>Mi cuenta</h2>
+        <p id="info-cuenta" class="texto-suave"></p>
+        <button id="btn-mi-clave" class="btn btn-secundario btn-bloque">🔑 Cambiar mi contraseña</button>
+        <button id="btn-salir" class="btn btn-contorno btn-bloque">🚪 Cerrar sesión</button>
+      </div>
+
+      <div class="tarjeta solo-admin">
+        <h2>Usuarios</h2>
+        <p class="texto-suave">Administradores y trabajadores que pueden entrar a la app.</p>
+        <button id="btn-nuevo-usuario" class="btn btn-primario btn-bloque">＋ Agregar usuario</button>
+        <ul id="lista-usuarios" class="lista"></ul>
+      </div>
+
+      <div class="tarjeta solo-admin">
         <h2>Respaldo de datos</h2>
-        <p class="texto-suave">Sus productos se guardan en este teléfono y funcionan sin internet.
-          Para no perderlos si cambia de teléfono o borra el navegador, guarde un respaldo de vez en cuando.</p>
+        <p class="texto-suave">Los precios se guardan en la nube y se comparten con todos los usuarios.
+          Puede guardar además una copia en un archivo, por seguridad.</p>
         <button id="btn-exportar" class="btn btn-primario btn-bloque">⬇️ Guardar respaldo (archivo)</button>
         <button id="btn-importar" class="btn btn-secundario btn-bloque">⬆️ Cargar respaldo</button>
         <input id="archivo-importar" type="file" accept="application/json,.json" class="oculto">
       </div>
+
       <div class="tarjeta">
         <h2>Información</h2>
         <p id="info-datos" class="texto-suave"></p>
@@ -88,7 +156,7 @@
     <!-- ============ DETALLE ============ -->
     <section id="vista-detalle" class="vista oculto"></section>
 
-    <!-- ============ FORMULARIO ============ -->
+    <!-- ============ FORMULARIO (admin) ============ -->
     <section id="vista-formulario" class="vista oculto">
       <form id="form-producto" autocomplete="off" novalidate>
         <label class="etiqueta" for="f-codigo">Código de barras</label>
@@ -134,11 +202,11 @@
   </main>
 
   <!-- ============ NAVEGACIÓN ============ -->
-  <nav class="navbar">
+  <nav class="navbar solo-sesion">
     <button class="nav-btn activo" data-vista="escanear"><span>📷</span>Escanear</button>
     <button class="nav-btn" data-vista="productos"><span>📋</span>Productos</button>
-    <button class="nav-btn" data-vista="categorias"><span>🏷️</span>Categorías</button>
-    <button class="nav-btn" data-vista="respaldo"><span>💾</span>Respaldo</button>
+    <button class="nav-btn solo-admin" data-vista="categorias"><span>🏷️</span>Categorías</button>
+    <button class="nav-btn" data-vista="ajustes"><span>⚙️</span>Ajustes</button>
   </nav>
 
   <!-- ============ CÁMARA ============ -->
@@ -161,6 +229,6 @@
   <div id="aviso" class="aviso" role="status" aria-live="polite"></div>
 
   <script src="lib/zxing.min.js" defer></script>
-  <script src="js/app.js" defer></script>
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>

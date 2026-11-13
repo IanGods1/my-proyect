@@ -1,9 +1,60 @@
 /* ============================================================
    Abarroterías San Vicenta — Control de precios
-   Toda la información se guarda en el teléfono (localStorage),
-   así que la app funciona sin internet.
+   - Administradores: control total (productos, categorías, usuarios).
+   - Trabajadores: solo escanean, buscan y ven precios.
+   - Los datos se guardan en Firebase (nube) y se comparten entre
+     teléfonos. Cada teléfono guarda una copia para usarla sin internet.
    ============================================================ */
-'use strict';
+import * as fb from '../lib/firebase.js';
+import { Escaner } from './escaner.js';
+
+/* ---------------- Configuración de Firebase ---------------- */
+const FIREBASE_CONFIG = {
+  apiKey: 'AIzaSyDf63TILKbmu-_sDY2wu9lF5fW5Jca2YaE',
+  authDomain: 'abarroterias-san-vicenta.firebaseapp.com',
+  projectId: 'abarroterias-san-vicenta',
+  storageBucket: 'abarroterias-san-vicenta.firebasestorage.app',
+  messagingSenderId: '1002896029601',
+  appId: '1:1002896029601:web:0b33bee0d9926439197de0',
+};
+// Los usuarios entran con un nombre (ej. "maria"); por dentro Firebase usa un correo interno.
+const DOMINIO_CORREO = 'sanvicenta.app';
+
+// Solo para pruebas en computadora: abrir con ?emulador
+const USAR_EMULADOR = new URLSearchParams(location.search).has('emulador');
+const CONFIG = USAR_EMULADOR ? { ...FIREBASE_CONFIG, projectId: 'demo-san-vicenta', apiKey: 'demo' } : FIREBASE_CONFIG;
+
+const appFirebase = fb.initializeApp(CONFIG);
+const auth = fb.initializeAuth(appFirebase, {
+  persistence: [fb.indexedDBLocalPersistence, fb.browserLocalPersistence],
+});
+let db;
+try {
+  db = fb.initializeFirestore(appFirebase, {
+    localCache: fb.persistentLocalCache({ tabManager: fb.persistentMultipleTabManager() }),
+  });
+} catch (e) {
+  console.warn('Sin copia local de datos', e);
+  db = fb.initializeFirestore(appFirebase, {});
+}
+if (USAR_EMULADOR) {
+  fb.connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+  fb.connectFirestoreEmulator(db, '127.0.0.1', 8080);
+}
+
+/** Segunda conexión, solo para crear cuentas sin cerrar la sesión del administrador. */
+let authSecundaria = null;
+function obtenerAuthSecundaria() {
+  if (!authSecundaria) {
+    const app2 = fb.initializeApp(CONFIG, 'secundaria');
+    authSecundaria = fb.initializeAuth(app2, { persistence: fb.inMemoryPersistence });
+    if (USAR_EMULADOR) fb.connectAuthEmulator(authSecundaria, 'http://127.0.0.1:9099', { disableWarnings: true });
+  }
+  return authSecundaria;
+}
+
+const refDoc = (...ruta) => fb.doc(db, ...ruta);
+const refColeccion = (nombre) => fb.collection(db, nombre);
 
 /* ---------------- Utilidades ---------------- */
 const $ = (sel) => document.querySelector(sel);
@@ -38,8 +89,14 @@ function leerPrecio(texto) {
   return Math.round(parseFloat(t) * 100) / 100;
 }
 
-function nuevoId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+/** Nombre de usuario: minúsculas, sin tildes ni espacios. */
+function normalizarUsuario(texto) {
+  return normalizar(texto).replace(/\s+/g, '');
+}
+const USUARIO_VALIDO = /^[a-z0-9._]{3,20}$/;
+
+function correoPara(usuario, version = 0) {
+  return version ? `${usuario}.${version}@${DOMINIO_CORREO}` : `${usuario}@${DOMINIO_CORREO}`;
 }
 
 function aviso(mensaje) {
@@ -47,53 +104,43 @@ function aviso(mensaje) {
   el.textContent = mensaje;
   el.classList.add('visible');
   clearTimeout(aviso._t);
-  aviso._t = setTimeout(() => el.classList.remove('visible'), 2200);
+  aviso._t = setTimeout(() => el.classList.remove('visible'), 2400);
 }
 
-/* ---------------- Datos (guardados en el teléfono) ---------------- */
-const CLAVE_DATOS = 'abarroterias_san_vicenta_v1';
-const CATEGORIAS_INICIALES = ['Bebidas', 'Lácteos', 'Snacks', 'Limpieza', 'Granos básicos'];
-
-let datos = { categorias: [], productos: [] };
-
-function cargarDatos() {
-  try {
-    const guardado = localStorage.getItem(CLAVE_DATOS);
-    if (guardado) {
-      const d = JSON.parse(guardado);
-      datos.categorias = Array.isArray(d.categorias) ? d.categorias : [];
-      datos.productos = Array.isArray(d.productos) ? d.productos : [];
-      return;
-    }
-  } catch (e) {
-    console.error('No se pudieron leer los datos', e);
+function mensajeError(e) {
+  const c = (e && e.code) || '';
+  if (c.includes('permission-denied')) return 'No tiene permiso para hacer esto.';
+  if (['auth/invalid-credential', 'auth/wrong-password', 'auth/user-not-found', 'auth/invalid-login-credentials'].includes(c)) {
+    return 'Usuario o contraseña incorrectos.';
   }
-  // Primera vez que se abre la app
-  datos.categorias = CATEGORIAS_INICIALES.map((nombre) => ({ id: nuevoId(), nombre }));
-  datos.productos = [];
-  guardarDatos();
+  if (c === 'auth/too-many-requests') return 'Demasiados intentos. Espere unos minutos e intente de nuevo.';
+  if (c === 'auth/network-request-failed' || c === 'unavailable' || c.includes('offline')) {
+    return 'No hay internet. Revise su conexión e intente de nuevo.';
+  }
+  if (c === 'auth/weak-password') return 'La contraseña debe tener al menos 6 caracteres.';
+  if (c === 'auth/requires-recent-login') return 'Por seguridad, cierre sesión, vuelva a entrar e intente de nuevo.';
+  if (e && /offline/i.test(e.message || '')) return 'No hay internet. Revise su conexión e intente de nuevo.';
+  return 'Ocurrió un error: ' + ((e && e.message) || e);
 }
 
-function guardarDatos() {
-  try {
-    localStorage.setItem(CLAVE_DATOS, JSON.stringify(datos));
-    return true;
-  } catch (e) {
+/**
+ * Guarda en la nube sin esperar: si no hay internet, el cambio queda en el
+ * teléfono y se sube solo cuando vuelva la señal.
+ */
+function enNube(promesa, titulo = 'No se pudo guardar') {
+  promesa.catch((e) => {
     console.error(e);
-    alerta('No se pudo guardar', 'El teléfono no tiene espacio o el navegador bloqueó el guardado.');
-    return false;
-  }
+    alerta(titulo, mensajeError(e));
+  });
 }
 
-/** Pide al navegador que no borre los datos automáticamente. */
-async function pedirAlmacenamientoPersistente() {
-  try {
-    if (navigator.storage && navigator.storage.persist) {
-      const ya = await navigator.storage.persisted();
-      if (!ya) await navigator.storage.persist();
-    }
-  } catch (_) { /* no es crítico */ }
-}
+/* ---------------- Datos ---------------- */
+const CATEGORIAS_INICIALES = ['Bebidas', 'Lácteos', 'Snacks', 'Limpieza', 'Granos básicos'];
+const CLAVE_DATOS_ANTERIORES = 'abarroterias_san_vicenta_v1'; // versión sin nube (solo en el teléfono)
+const CLAVE_MIGRADO = 'abarroterias_san_vicenta_migrado';
+
+const datos = { categorias: [], productos: [], usuarios: [] };
+const cargado = { productos: false, categorias: false };
 
 const categoriaPorId = (id) => datos.categorias.find((c) => c.id === id);
 const nombreCategoria = (id) => categoriaPorId(id)?.nombre || 'Sin categoría';
@@ -114,11 +161,287 @@ function productoPorCodigo(codigo, excluirId) {
 }
 
 function ordenarPorNombre(lista) {
-  return lista.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+  return lista.sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es', { sensitivity: 'base' }));
+}
+
+/** Pone o reemplaza un elemento en la lista local (antes de que responda la nube). */
+function ponerLocal(lista, elemento) {
+  const i = lista.findIndex((x) => x.id === elemento.id);
+  if (i >= 0) lista[i] = { ...lista[i], ...elemento };
+  else lista.push(elemento);
+}
+
+/** Escribe muchos documentos en grupos de 400 (límite de Firebase: 500). */
+async function escribirEnGrupos(operaciones) {
+  for (let i = 0; i < operaciones.length; i += 400) {
+    const lote = fb.writeBatch(db);
+    operaciones.slice(i, i + 400).forEach((op) => op(lote));
+    await lote.commit();
+  }
+}
+
+/* ---------------- Sesión ---------------- */
+let sesion = null; // { uid, nombre, usuario, rol }
+const esAdmin = () => sesion?.rol === 'admin';
+let suscripciones = [];
+let suscripcionUsuario = null;
+let rolElegido = null; // botón que tocó al entrar (admin / trabajador)
+let creandoPrimerAdmin = false;
+let accesoPendiente = null; // { rol, error } para mostrar después de cerrar sesión
+let appIniciada = false;
+
+function quitarSuscripciones() {
+  suscripciones.forEach((u) => u());
+  suscripciones = [];
+}
+
+fb.onAuthStateChanged(auth, (usuario) => {
+  if (suscripcionUsuario) { suscripcionUsuario(); suscripcionUsuario = null; }
+  quitarSuscripciones();
+  if (!usuario) {
+    sesion = null;
+    appIniciada = false;
+    mostrarAcceso();
+    return;
+  }
+  // Escuchar los datos de la persona: si la desactivan, se cierra su sesión al momento
+  suscripcionUsuario = fb.onSnapshot(refDoc('usuarios', usuario.uid), { includeMetadataChanges: true }, (snap) => {
+    if (!snap.exists()) {
+      if (creandoPrimerAdmin || snap.metadata.fromCache) return; // esperar a la nube
+      cerrarSesion({ error: 'Este usuario no está registrado en la app.' });
+      return;
+    }
+    // Esperar a que la nube confirme (ej. recién creado el administrador principal)
+    if (snap.metadata.hasPendingWrites) return;
+    const u = snap.data();
+    if (!u.activo) {
+      cerrarSesion({
+        error: u.reemplazadoPor
+          ? 'Su contraseña fue cambiada. Entre con la contraseña nueva.'
+          : 'Su usuario fue desactivado. Hable con el administrador.',
+      });
+      return;
+    }
+    if (rolElegido && u.rol !== rolElegido) {
+      const correcto = u.rol === 'admin' ? 'Administrador' : 'Trabajador';
+      cerrarSesion({ rol: rolElegido, error: `Este usuario es ${correcto}. Regrese y toque "${correcto}".` });
+      return;
+    }
+    rolElegido = null;
+    const rolAnterior = sesion?.rol;
+    sesion = { uid: usuario.uid, email: usuario.email, nombre: u.nombre, usuario: u.usuario, rol: u.rol };
+    if (!appIniciada) iniciarSesionEnApp();
+    else if (rolAnterior !== sesion.rol) { aviso('Su tipo de usuario cambió'); reiniciarApp(); }
+    else actualizarChipUsuario();
+  }, (error) => {
+    console.error(error);
+    if (error.code === 'permission-denied') cerrarSesion({ error: 'Este usuario no tiene acceso.' });
+  });
+});
+
+async function cerrarSesion(pendiente = null) {
+  accesoPendiente = pendiente;
+  rolElegido = null;
+  try { await fb.signOut(auth); } catch (e) { console.error(e); }
+}
+
+function actualizarChipUsuario() {
+  if (!sesion) return;
+  $('#chip-usuario').textContent = (esAdmin() ? '👑 ' : '👤 ') + String(sesion.nombre).split(' ')[0];
+  document.body.classList.toggle('rol-admin', esAdmin());
+  document.body.classList.toggle('rol-trabajador', !esAdmin());
+}
+
+function iniciarSesionEnApp() {
+  appIniciada = true;
+  document.body.classList.remove('sin-sesion');
+  $('#pantalla-cargando').classList.add('oculto');
+  $('#pantalla-acceso').classList.add('oculto');
+  actualizarChipUsuario();
+  suscribirDatos();
+  history.replaceState({ vista: 'escanear' }, '');
+  mostrar({ vista: 'escanear' });
+  if (esAdmin()) setTimeout(ofrecerMigracion, 1500);
+}
+
+function reiniciarApp() {
+  quitarSuscripciones();
+  actualizarChipUsuario();
+  suscribirDatos();
+  irAPestana('escanear');
+}
+
+function suscribirDatos() {
+  cargado.productos = false;
+  cargado.categorias = false;
+  datos.usuarios = [];
+  escuchar('productos', (snap) => {
+    datos.productos = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    cargado.productos = true;
+  });
+  escuchar('categorias', (snap) => {
+    datos.categorias = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    cargado.categorias = true;
+  });
+  if (esAdmin()) {
+    escuchar('usuarios', (snap) => {
+      datos.usuarios = snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+    });
+  }
+}
+
+/** Escucha una colección en tiempo real; si la nube la rechaza (ej. permisos recién dados), reintenta. */
+function escuchar(coleccion, alRecibir, intento = 0) {
+  const uidActual = sesion?.uid;
+  let quitar = null;
+  const quitarEste = () => { if (quitar) quitar(); };
+  suscripciones.push(quitarEste);
+  quitar = fb.onSnapshot(refColeccion(coleccion), (snap) => {
+    intento = 0;
+    alRecibir(snap);
+    refrescarVista();
+  }, (e) => {
+    console.warn(`No se pudo leer ${coleccion}`, e.code);
+    quitar = null;
+    if (sesion?.uid !== uidActual || !suscripciones.includes(quitarEste)) return;
+    if (intento < 5) setTimeout(() => {
+      if (sesion?.uid !== uidActual || !suscripciones.includes(quitarEste)) return;
+      suscripciones = suscripciones.filter((x) => x !== quitarEste);
+      escuchar(coleccion, alRecibir, intento + 1);
+    }, 2000 * (intento + 1));
+    else if (e.code === 'permission-denied') aviso('Sin permiso para ver los datos');
+  });
+}
+
+/** Vuelve a dibujar la pantalla actual cuando llegan datos nuevos (menos el formulario). */
+function refrescarVista() {
+  const estado = history.state || {};
+  if (!sesion || estado.escaner) return;
+  if (estado.vista === 'formulario') { llenarSelectCategorias($('#f-categoria').value); return; }
+  mostrar(estado, { sinScroll: true });
+}
+
+/* ---------------- Pantalla de acceso ---------------- */
+async function mostrarAcceso() {
+  document.body.classList.add('sin-sesion');
+  document.body.classList.remove('rol-admin', 'rol-trabajador');
+  $('#pantalla-cargando').classList.add('oculto');
+  $('#pantalla-acceso').classList.remove('oculto');
+  cerrarModal();
+  Escaner.detener();
+  $('#escaner').classList.add('oculto');
+
+  const pendiente = accesoPendiente;
+  accesoPendiente = null;
+  if (pendiente && pendiente.rol) {
+    mostrarPasoAcceso('login', pendiente.rol);
+    $('#login-error').textContent = pendiente.error || '';
+    return;
+  }
+  mostrarPasoAcceso('elegir');
+  if (pendiente && pendiente.error) alerta('Sesión cerrada', pendiente.error);
+
+  // ¿Es la primera vez? (todavía no hay administrador principal)
+  try {
+    const inicial = await fb.getDoc(refDoc('config', 'inicial'));
+    if (!inicial.exists() && !sesion) mostrarPasoAcceso('primer-admin');
+  } catch (e) {
+    console.warn('No se pudo revisar la configuración inicial', e);
+  }
+}
+
+function mostrarPasoAcceso(paso, rol) {
+  $('#acceso-elegir').classList.toggle('oculto', paso !== 'elegir');
+  $('#form-login').classList.toggle('oculto', paso !== 'login');
+  $('#form-primer-admin').classList.toggle('oculto', paso !== 'primer-admin');
+  if (paso === 'login') {
+    $('#form-login').dataset.rol = rol;
+    $('#login-titulo').textContent = rol === 'admin' ? '👑 Entrar como Administrador' : '👤 Entrar como Trabajador';
+    $('#login-error').textContent = '';
+    $('#login-clave').value = '';
+    setTimeout(() => $('#login-usuario').focus(), 100);
+  }
+}
+
+async function iniciarSesion(e) {
+  e.preventDefault();
+  const rol = $('#form-login').dataset.rol;
+  const usuario = normalizarUsuario($('#login-usuario').value);
+  const clave = $('#login-clave').value;
+  const error = (msg) => { $('#login-error').textContent = msg; };
+  if (!usuario) return error('Escriba su usuario.');
+  if (!clave) return error('Escriba su contraseña.');
+
+  const boton = $('#form-login button[type=submit]');
+  boton.disabled = true;
+  boton.textContent = 'Entrando…';
+  try {
+    const acceso = await fb.getDoc(refDoc('acceso', usuario));
+    if (!acceso.exists()) return error('Ese usuario no existe. Revise cómo lo escribió.');
+    rolElegido = rol;
+    await fb.signInWithEmailAndPassword(auth, acceso.data().email, clave);
+  } catch (err) {
+    rolElegido = null;
+    console.error(err);
+    error(mensajeError(err));
+  } finally {
+    boton.disabled = false;
+    boton.textContent = 'Entrar';
+  }
+}
+
+async function crearPrimerAdmin(e) {
+  e.preventDefault();
+  const nombre = $('#pa-nombre').value.trim().replace(/\s+/g, ' ');
+  const usuario = normalizarUsuario($('#pa-usuario').value);
+  const clave = $('#pa-clave').value;
+  const error = (msg) => { $('#pa-error').textContent = msg; };
+  if (!nombre) return error('Escriba su nombre.');
+  if (!USUARIO_VALIDO.test(usuario)) return error('El usuario debe tener de 3 a 20 letras o números, sin espacios.');
+  if (clave.length < 6) return error('La contraseña debe tener al menos 6 caracteres.');
+  if (clave !== $('#pa-clave2').value) return error('Las contraseñas no coinciden.');
+
+  const boton = $('#form-primer-admin button[type=submit]');
+  boton.disabled = true;
+  boton.textContent = 'Creando…';
+  creandoPrimerAdmin = true;
+  try {
+    const email = correoPara(usuario);
+    const cred = await fb.createUserWithEmailAndPassword(auth, email, clave);
+    const uid = cred.user.uid;
+    const lote = fb.writeBatch(db);
+    lote.set(refDoc('usuarios', uid), { nombre, usuario, rol: 'admin', activo: true, creado: new Date().toISOString() });
+    lote.set(refDoc('acceso', usuario), { email, uid });
+    lote.set(refDoc('config', 'inicial'), { uid, fecha: new Date().toISOString() });
+    await lote.commit();
+    creandoPrimerAdmin = false;
+    // Categorías iniciales (si no hay datos anteriores en el teléfono que las traigan)
+    if (!leerDatosAnteriores()) {
+      const ops = CATEGORIAS_INICIALES.map((n) => (l) => l.set(fb.doc(refColeccion('categorias')), { nombre: n }));
+      escribirEnGrupos(ops).catch((err) => console.error(err));
+    }
+  } catch (err) {
+    console.error(err);
+    error(err.code === 'auth/email-already-in-use' ? 'Ese usuario ya existe. Elija otro.' : mensajeError(err));
+    if (auth.currentUser) await cerrarSesion();
+  } finally {
+    creandoPrimerAdmin = false;
+    boton.disabled = false;
+    boton.textContent = 'Crear y entrar';
+  }
 }
 
 /* ---------------- Ventanas emergentes ---------------- */
+const MANTENER_ABIERTA = Symbol('mantener');
+let cerrarModalActual = null;
+
+/**
+ * Muestra una ventana con botones. Cada botón puede tener:
+ * - valor: lo que devuelve al tocarlo
+ * - accion: función (puede ser async); si devuelve MANTENER_ABIERTA, la ventana sigue abierta
+ */
 function modal({ titulo, html = '', botones, alAbrir }) {
+  cerrarModal();
   return new Promise((resolver) => {
     const caja = $('#modal');
     $('#modal-titulo').textContent = titulo;
@@ -127,19 +450,35 @@ function modal({ titulo, html = '', botones, alAbrir }) {
     cont.innerHTML = '';
     const cerrar = (valor) => {
       caja.classList.add('oculto');
+      cerrarModalActual = null;
       resolver(valor);
     };
+    cerrarModalActual = () => cerrar(null);
     botones.forEach((b) => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'btn ' + (b.clase || 'btn-secundario');
       btn.textContent = b.texto;
-      btn.addEventListener('click', () => cerrar(typeof b.valor === 'function' ? b.valor() : b.valor));
+      btn.addEventListener('click', async () => {
+        if (!b.accion) return cerrar(b.valor);
+        const botonesModal = $$('#modal-botones .btn');
+        botonesModal.forEach((x) => { x.disabled = true; });
+        try {
+          const r = await b.accion();
+          if (r !== MANTENER_ABIERTA) cerrar(r);
+        } finally {
+          botonesModal.forEach((x) => { x.disabled = false; });
+        }
+      });
       cont.appendChild(btn);
     });
     caja.classList.remove('oculto');
     if (alAbrir) alAbrir(cerrar);
   });
+}
+
+function cerrarModal() {
+  if (cerrarModalActual) cerrarModalActual();
 }
 
 function alerta(titulo, mensaje) {
@@ -163,7 +502,7 @@ function pedirTexto(titulo, valorInicial = '', placeholder = '') {
     html: `<input id="modal-input" class="input" type="text" maxlength="40" placeholder="${esc(placeholder)}" value="${esc(valorInicial)}">`,
     botones: [
       { texto: 'Cancelar', clase: 'btn-secundario', valor: null },
-      { texto: 'Guardar', clase: 'btn-primario', valor: () => $('#modal-input').value.trim() },
+      { texto: 'Guardar', clase: 'btn-primario', accion: () => $('#modal-input').value.trim() },
     ],
     alAbrir: (cerrar) => {
       const input = $('#modal-input');
@@ -176,117 +515,7 @@ function pedirTexto(titulo, valorInicial = '', placeholder = '') {
   });
 }
 
-/* ---------------- Escáner de código de barras ---------------- */
-const FORMATOS_NATIVOS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'code_93', 'itf', 'codabar', 'qr_code'];
-
-const Escaner = {
-  activo: false,
-  stream: null,
-  lectorZXing: null,
-  temporizador: null,
-  conHistorial: false,
-
-  async iniciar(alLeer) {
-    this.activo = true;
-    const video = $('#video');
-    $('#escaner-mensaje').textContent = 'Apunte la cámara al código de barras';
-
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      throw new Error('sin-soporte');
-    }
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
-    });
-    if (!this.activo) { stream.getTracks().forEach((t) => t.stop()); return; }
-    this.stream = stream;
-
-    const avisarLectura = (codigo) => {
-      if (!this.activo) return;
-      this.detener();
-      sonidoLectura();
-      alLeer(limpiarCodigo(codigo));
-    };
-
-    // 1) Detector nativo del teléfono (rápido, disponible en Android/Chrome)
-    const detector = await crearDetectorNativo();
-    if (detector) {
-      video.srcObject = stream;
-      await video.play();
-      const buscar = async () => {
-        if (!this.activo) return;
-        try {
-          if (video.readyState >= 2) {
-            const resultados = await detector.detect(video);
-            if (resultados.length && resultados[0].rawValue) return avisarLectura(resultados[0].rawValue);
-          }
-        } catch (_) { /* seguir intentando */ }
-        this.temporizador = setTimeout(buscar, 150);
-      };
-      buscar();
-      return;
-    }
-
-    // 2) Lector ZXing incluido en la app (funciona en iPhone y sin internet)
-    if (!window.ZXing) throw new Error('sin-lector');
-    const Z = window.ZXing;
-    const pistas = new Map();
-    pistas.set(Z.DecodeHintType.POSSIBLE_FORMATS, [
-      Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.UPC_E,
-      Z.BarcodeFormat.CODE_128, Z.BarcodeFormat.CODE_39, Z.BarcodeFormat.CODE_93, Z.BarcodeFormat.ITF,
-      Z.BarcodeFormat.CODABAR, Z.BarcodeFormat.QR_CODE,
-    ]);
-    this.lectorZXing = new Z.BrowserMultiFormatReader(pistas, 200);
-    await this.lectorZXing.decodeFromStream(stream, video, (resultado) => {
-      if (resultado) avisarLectura(resultado.getText());
-    });
-  },
-
-  detener() {
-    this.activo = false;
-    clearTimeout(this.temporizador);
-    if (this.lectorZXing) {
-      try { this.lectorZXing.reset(); } catch (_) { /* nada */ }
-      this.lectorZXing = null;
-    }
-    if (this.stream) {
-      this.stream.getTracks().forEach((t) => t.stop());
-      this.stream = null;
-    }
-    const video = $('#video');
-    video.pause();
-    video.srcObject = null;
-  },
-};
-
-async function crearDetectorNativo() {
-  if (!('BarcodeDetector' in window)) return null;
-  try {
-    const soportados = await window.BarcodeDetector.getSupportedFormats();
-    const formatos = FORMATOS_NATIVOS.filter((f) => soportados.includes(f));
-    if (!formatos.includes('ean_13')) return null;
-    return new window.BarcodeDetector({ formats: formatos });
-  } catch (_) {
-    return null;
-  }
-}
-
-function sonidoLectura() {
-  try { if (navigator.vibrate) navigator.vibrate(120); } catch (_) { /* nada */ }
-  try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = sonidoLectura.ctx || (sonidoLectura.ctx = new Ctx());
-    const osc = ctx.createOscillator();
-    const vol = ctx.createGain();
-    osc.frequency.value = 1400;
-    vol.gain.value = 0.15;
-    osc.connect(vol).connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.12);
-  } catch (_) { /* nada */ }
-}
-
+/* ---------------- Escáner ---------------- */
 /**
  * Abre la cámara.
  * - reemplazar = true: al leer, la pantalla del escáner se reemplaza por la siguiente (ej. detalle).
@@ -310,7 +539,7 @@ async function abrirEscaner(alLeer, { reemplazar = false } = {}) {
       }
     });
   } catch (error) {
-    const yaCancelado = $('#escaner').classList.contains('oculto');
+    const yaCancelado = pantalla.classList.contains('oculto');
     cerrarEscaner();
     if (yaCancelado) return;
     let mensaje = 'No se pudo abrir la cámara. Escriba el código a mano.';
@@ -345,11 +574,13 @@ const TITULOS = {
   escanear: 'Escanear producto',
   productos: 'Lista de productos',
   categorias: 'Categorías',
-  respaldo: 'Respaldo',
+  ajustes: 'Ajustes',
   detalle: 'Datos del producto',
+  noregistrado: 'Producto no registrado',
   formulario: 'Producto',
 };
-const PESTANAS = ['escanear', 'productos', 'categorias', 'respaldo'];
+const PESTANAS = ['escanear', 'productos', 'categorias', 'ajustes'];
+const SOLO_ADMIN = ['categorias', 'formulario'];
 let pestanaActual = 'escanear';
 
 /** modo: 'push' (nueva pantalla), 'replace' (sustituye la actual) */
@@ -365,13 +596,16 @@ function irAPestana(vista) {
   mostrar({ vista });
 }
 
-function mostrar(estado) {
+function mostrar(estado, { sinScroll = false } = {}) {
+  if (!sesion) return;
   let vista = estado?.vista || 'escanear';
-  if (vista === 'detalle' && !productoPorId(estado.id)) vista = 'productos';
-  if (vista === 'formulario' && estado.id && !productoPorId(estado.id)) vista = 'productos';
+  if (SOLO_ADMIN.includes(vista) && !esAdmin()) vista = 'productos';
+  if (vista === 'detalle' && cargado.productos && !productoPorId(estado.id)) vista = 'productos';
+  if (vista === 'formulario' && estado.id && cargado.productos && !productoPorId(estado.id)) vista = 'productos';
 
+  const seccion = vista === 'noregistrado' ? 'detalle' : vista;
   $$('.vista').forEach((v) => v.classList.add('oculto'));
-  $('#vista-' + vista).classList.remove('oculto');
+  $('#vista-' + seccion).classList.remove('oculto');
 
   const esPestana = PESTANAS.includes(vista);
   if (esPestana) pestanaActual = vista;
@@ -386,11 +620,12 @@ function mostrar(estado) {
     case 'escanear': renderEscanear(); break;
     case 'productos': renderProductos(); break;
     case 'categorias': renderCategorias(); break;
-    case 'respaldo': renderRespaldo(); break;
+    case 'ajustes': renderAjustes(); break;
     case 'detalle': renderDetalle(estado.id); break;
+    case 'noregistrado': renderNoRegistrado(estado.codigo); break;
     case 'formulario': renderFormulario(estado); break;
   }
-  window.scrollTo(0, 0);
+  if (!sinScroll) window.scrollTo(0, 0);
 }
 
 window.addEventListener('popstate', (e) => {
@@ -402,10 +637,7 @@ window.addEventListener('popstate', (e) => {
     $('#escaner').classList.add('oculto');
     return;
   }
-  // Botón "atrás" con una ventana emergente abierta: solo se cierra
-  if (!$('#modal').classList.contains('oculto')) {
-    $('#modal').classList.add('oculto');
-  }
+  cerrarModal();
   mostrar(e.state || { vista: pestanaActual });
 });
 
@@ -416,19 +648,21 @@ function abrirCodigo(codigo, modo = 'push') {
   const existente = productoPorCodigo(codigo);
   if (existente) {
     navegar({ vista: 'detalle', id: existente.id }, modo);
-  } else {
+  } else if (esAdmin()) {
     navegar({ vista: 'formulario', codigo }, modo);
     aviso('Producto nuevo: regístrelo');
+  } else {
+    navegar({ vista: 'noregistrado', codigo }, modo);
   }
 }
 
 function renderEscanear() {
   const total = datos.productos.length;
   const sinCosto = datos.productos.filter((p) => p.precioCosto === null || p.precioCosto === undefined).length;
-  $('#resumen').innerHTML = `
+  $('#resumen').innerHTML = !cargado.productos ? '<div class="resumen-item" style="grid-column:1/-1"><span>Cargando productos…</span></div>' : `
     <div class="resumen-item"><strong>${total}</strong><span>productos</span></div>
     <div class="resumen-item"><strong>${datos.categorias.length}</strong><span>categorías</span></div>
-    ${sinCosto ? `<div class="resumen-item" style="grid-column:1/-1"><span>⚠️ ${sinCosto} producto(s) sin precio de costo</span></div>` : ''}
+    ${sinCosto && esAdmin() ? `<div class="resumen-item" style="grid-column:1/-1"><span>⚠️ ${sinCosto} producto(s) sin precio de costo</span></div>` : ''}
   `;
 }
 
@@ -459,6 +693,11 @@ function productosFiltrados() {
 }
 
 function renderListaProductos() {
+  if (!cargado.productos) {
+    $('#conteo-productos').textContent = '';
+    $('#lista-productos').innerHTML = '<li class="vacio">Cargando productos…</li>';
+    return;
+  }
   const lista = productosFiltrados();
   const total = datos.productos.length;
   $('#conteo-productos').textContent = total
@@ -466,27 +705,28 @@ function renderListaProductos() {
     : '';
 
   if (!total) {
-    $('#lista-productos').innerHTML = `
-      <li class="vacio">Todavía no hay productos.<br>
-        <button class="btn btn-primario" data-accion="ir-escanear">📷 Escanear el primero</button>
-      </li>`;
+    $('#lista-productos').innerHTML = esAdmin()
+      ? `<li class="vacio">Todavía no hay productos.<br>
+          <button class="btn btn-primario" data-accion="ir-escanear">📷 Escanear el primero</button></li>`
+      : '<li class="vacio">Todavía no hay productos registrados.</li>';
     return;
   }
   if (!lista.length) {
     $('#lista-productos').innerHTML = '<li class="vacio">No se encontraron productos.</li>';
     return;
   }
+  const acciones = (p) => (esAdmin() ? `
+      <div class="item-acciones">
+        <button class="btn-icono-peq" data-accion="editar" data-id="${p.id}" aria-label="Editar">✏️</button>
+        <button class="btn-icono-peq peligro" data-accion="eliminar" data-id="${p.id}" aria-label="Eliminar">🗑️</button>
+      </div>` : '');
   $('#lista-productos').innerHTML = lista.map((p) => `
     <li class="item">
       <div class="item-info" data-accion="ver" data-id="${p.id}">
         <div class="item-nombre">${esc(p.nombre)}</div>
         <div class="item-sub"><span class="etiqueta-cat">${esc(nombreCategoria(p.categoriaId))}</span></div>
         <div class="item-precio">${q(p.precioVenta)}</div>
-      </div>
-      <div class="item-acciones">
-        <button class="btn-icono-peq" data-accion="editar" data-id="${p.id}" aria-label="Editar">✏️</button>
-        <button class="btn-icono-peq peligro" data-accion="eliminar" data-id="${p.id}" aria-label="Eliminar">🗑️</button>
-      </div>
+      </div>${acciones(p)}
     </li>`).join('');
 }
 
@@ -497,11 +737,11 @@ function renderProductos() {
 
 async function eliminarProducto(id) {
   const p = productoPorId(id);
-  if (!p) return false;
-  const ok = await confirmar('Eliminar producto', `¿Seguro que desea eliminar "${p.nombre}"? Esta acción no se puede deshacer.`, 'Eliminar', true);
+  if (!p || !esAdmin()) return false;
+  const ok = await confirmar('Eliminar producto', `¿Seguro que desea eliminar "${p.nombre}"? Se borrará para todos los usuarios.`, 'Eliminar', true);
   if (!ok) return false;
   datos.productos = datos.productos.filter((x) => x.id !== id);
-  guardarDatos();
+  enNube(fb.deleteDoc(refDoc('productos', id)), 'No se pudo eliminar');
   aviso('Producto eliminado');
   return true;
 }
@@ -516,8 +756,13 @@ function textoGanancia(venta, costo) {
 
 function renderDetalle(id) {
   const p = productoPorId(id);
+  if (!p) {
+    $('#vista-detalle').innerHTML = '<p class="vacio">Cargando…</p>';
+    return;
+  }
   const g = textoGanancia(p.precioVenta, p.precioCosto);
   const fecha = p.actualizado ? new Date(p.actualizado).toLocaleDateString('es-GT', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+  const quien = p.actualizadoPor ? ` (${esc(p.actualizadoPor)})` : '';
   $('#vista-detalle').innerHTML = `
     <div class="tarjeta">
       <div class="detalle-cabecera">
@@ -533,22 +778,40 @@ function renderDetalle(id) {
       <div class="detalle-fila"><span>Ganancia</span><span class="${g ? (g.ganancia >= 0 ? 'positivo' : 'negativo') : ''}">${g ? q(g.ganancia) + (g.porcentaje !== null ? ` (${g.porcentaje}%)` : '') : '—'}</span></div>
       <div class="detalle-fila"><span>Lugar de compra</span><span>${esc(p.lugarCompra || '—')}</span></div>
       <div class="detalle-fila"><span>Categoría</span><span>${esc(nombreCategoria(p.categoriaId))}</span></div>
-      <div class="detalle-fila"><span>Última modificación</span><span>${esc(fecha)}</span></div>
+      <div class="detalle-fila"><span>Última modificación</span><span>${esc(fecha)}${quien}</span></div>
     </div>
+    ${esAdmin() ? `
     <div class="botones-fila">
       <button class="btn btn-primario btn-grande" id="d-editar">✏️ Editar</button>
       <button class="btn btn-peligro btn-grande" id="d-eliminar">🗑️ Eliminar</button>
-    </div>
+    </div>` : ''}
     <button class="btn btn-secundario btn-bloque btn-grande" id="d-escanear">📷 Escanear otro</button>
   `;
-  $('#d-editar').onclick = () => navegar({ vista: 'formulario', id: p.id });
-  $('#d-eliminar').onclick = async () => {
-    if (await eliminarProducto(p.id)) history.back();
-  };
+  if (esAdmin()) {
+    $('#d-editar').onclick = () => navegar({ vista: 'formulario', id: p.id });
+    $('#d-eliminar').onclick = async () => {
+      if (await eliminarProducto(p.id)) history.back();
+    };
+  }
   $('#d-escanear').onclick = () => abrirEscaner((codigo) => abrirCodigo(codigo, 'replace'), { reemplazar: true });
 }
 
-/* ---------------- Pantalla: Formulario ---------------- */
+/** Lo que ve un trabajador al escanear un producto que no existe. */
+function renderNoRegistrado(codigo) {
+  $('#vista-detalle').innerHTML = `
+    <div class="tarjeta no-registrado">
+      <div class="grande">🔎</div>
+      <h2>Producto no registrado</h2>
+      <p class="texto-suave">Este código todavía no está en la lista de precios:</p>
+      <div class="codigo-grande">${esc(codigo || '')}</div>
+      <p><strong>Avise al administrador</strong> para que lo registre.</p>
+    </div>
+    <button class="btn btn-primario btn-bloque btn-grande" id="nr-escanear">📷 Escanear otro</button>
+  `;
+  $('#nr-escanear').onclick = () => abrirEscaner((c) => abrirCodigo(c, 'replace'), { reemplazar: true });
+}
+
+/* ---------------- Pantalla: Formulario (solo administradores) ---------------- */
 let formularioEstado = null;
 
 function llenarSelectCategorias(seleccion) {
@@ -568,7 +831,7 @@ function llenarLugares() {
 function renderFormulario(estado) {
   formularioEstado = estado;
   const p = estado.id ? productoPorId(estado.id) : null;
-  const precio = (n) => (n === null || n === undefined ? '' : n.toFixed(2));
+  const precio = (n) => (n === null || n === undefined ? '' : Number(n).toFixed(2));
 
   $('#f-codigo').value = p ? (p.codigo || '') : (estado.codigo || '');
   $('#f-nombre').value = p ? p.nombre : '';
@@ -595,6 +858,7 @@ function actualizarGanancia() {
 
 async function guardarFormulario(e) {
   e.preventDefault();
+  if (!esAdmin()) return;
   const error = (msg, campo) => {
     $('#f-error').textContent = msg;
     if (campo) $(campo).focus();
@@ -630,24 +894,25 @@ async function guardarFormulario(e) {
     lugarCompra: lugar,
     categoriaId: categoriaId || null,
     actualizado: new Date().toISOString(),
+    actualizadoPor: sesion.nombre,
   };
 
   if (idActual) {
-    const p = productoPorId(idActual);
-    Object.assign(p, registro);
-    if (!guardarDatos()) return;
-    aviso('Cambios guardados ✔');
+    ponerLocal(datos.productos, { id: idActual, ...registro });
+    enNube(fb.updateDoc(refDoc('productos', idActual), registro));
+    aviso(navigator.onLine ? 'Cambios guardados ✔' : 'Guardado. Se subirá cuando haya internet');
     history.back();
   } else {
-    const nuevo = { id: nuevoId(), creado: registro.actualizado, ...registro };
-    datos.productos.push(nuevo);
-    if (!guardarDatos()) return;
-    aviso('Producto guardado ✔');
-    navegar({ vista: 'detalle', id: nuevo.id }, 'replace');
+    const ref = fb.doc(refColeccion('productos'));
+    const nuevo = { ...registro, creado: registro.actualizado };
+    ponerLocal(datos.productos, { id: ref.id, ...nuevo });
+    enNube(fb.setDoc(ref, nuevo));
+    aviso(navigator.onLine ? 'Producto guardado ✔' : 'Guardado. Se subirá cuando haya internet');
+    navegar({ vista: 'detalle', id: ref.id }, 'replace');
   }
 }
 
-/* ---------------- Pantalla: Categorías ---------------- */
+/* ---------------- Pantalla: Categorías (solo administradores) ---------------- */
 function nombreCategoriaRepetido(nombre, excluirId) {
   const n = normalizar(nombre);
   return datos.categorias.some((c) => c.id !== excluirId && normalizar(c.nombre) === n);
@@ -655,14 +920,15 @@ function nombreCategoriaRepetido(nombre, excluirId) {
 
 function crearCategoria(nombre) {
   nombre = (nombre || '').trim().replace(/\s+/g, ' ');
-  if (!nombre) return null;
+  if (!nombre || !esAdmin()) return null;
   if (nombreCategoriaRepetido(nombre)) {
     alerta('Categoría repetida', `Ya existe una categoría llamada "${nombre}".`);
     return null;
   }
-  const cat = { id: nuevoId(), nombre };
-  datos.categorias.push(cat);
-  guardarDatos();
+  const ref = fb.doc(refColeccion('categorias'));
+  const cat = { id: ref.id, nombre };
+  ponerLocal(datos.categorias, cat);
+  enNube(fb.setDoc(ref, { nombre }));
   aviso('Categoría creada');
   return cat;
 }
@@ -670,7 +936,7 @@ function crearCategoria(nombre) {
 function renderCategorias() {
   const cats = ordenarPorNombre([...datos.categorias]);
   if (!cats.length) {
-    $('#lista-categorias').innerHTML = '<li class="vacio">No hay categorías. Agregue una arriba.</li>';
+    $('#lista-categorias').innerHTML = `<li class="vacio">${cargado.categorias ? 'No hay categorías. Agregue una arriba.' : 'Cargando…'}</li>`;
     return;
   }
   $('#lista-categorias').innerHTML = cats.map((c) => {
@@ -692,11 +958,12 @@ function renderCategorias() {
 async function editarCategoria(id) {
   const c = categoriaPorId(id);
   if (!c) return;
-  const nombre = await pedirTexto('Cambiar nombre', c.nombre, 'Nombre de la categoría');
+  let nombre = await pedirTexto('Cambiar nombre', c.nombre, 'Nombre de la categoría');
   if (!nombre || nombre === c.nombre) return;
+  nombre = nombre.replace(/\s+/g, ' ');
   if (nombreCategoriaRepetido(nombre, id)) return alerta('Categoría repetida', `Ya existe una categoría llamada "${nombre}".`);
-  c.nombre = nombre.replace(/\s+/g, ' ');
-  guardarDatos();
+  ponerLocal(datos.categorias, { id, nombre });
+  enNube(fb.updateDoc(refDoc('categorias', id), { nombre }));
   aviso('Categoría actualizada');
   renderCategorias();
 }
@@ -704,33 +971,258 @@ async function editarCategoria(id) {
 async function eliminarCategoria(id) {
   const c = categoriaPorId(id);
   if (!c) return;
-  const n = datos.productos.filter((p) => p.categoriaId === id).length;
-  const mensaje = n
-    ? `La categoría "${c.nombre}" tiene ${n} producto(s). Los productos NO se borrarán, quedarán como "Sin categoría". ¿Continuar?`
+  const afectados = datos.productos.filter((p) => p.categoriaId === id);
+  const mensaje = afectados.length
+    ? `La categoría "${c.nombre}" tiene ${afectados.length} producto(s). Los productos NO se borrarán, quedarán como "Sin categoría". ¿Continuar?`
     : `¿Eliminar la categoría "${c.nombre}"?`;
   if (!(await confirmar('Eliminar categoría', mensaje, 'Eliminar', true))) return;
   datos.categorias = datos.categorias.filter((x) => x.id !== id);
-  datos.productos.forEach((p) => { if (p.categoriaId === id) p.categoriaId = null; });
-  guardarDatos();
+  afectados.forEach((p) => { p.categoriaId = null; });
+  const ops = afectados.map((p) => (l) => l.update(refDoc('productos', p.id), { categoriaId: null }));
+  ops.push((l) => l.delete(refDoc('categorias', id)));
+  enNube(escribirEnGrupos(ops), 'No se pudo eliminar');
   aviso('Categoría eliminada');
   renderCategorias();
 }
 
-/* ---------------- Pantalla: Respaldo ---------------- */
-async function renderRespaldo() {
-  let persistente = '';
-  try {
-    if (navigator.storage && navigator.storage.persisted) {
-      persistente = (await navigator.storage.persisted())
-        ? '✅ El teléfono protege estos datos para que no se borren solos.'
-        : 'ℹ️ Recomendación: instale la app en la pantalla de inicio y guarde respaldos seguido.';
-    }
-  } catch (_) { /* nada */ }
-  $('#info-datos').innerHTML = `${datos.productos.length} productos y ${datos.categorias.length} categorías guardados en este teléfono.<br>${persistente}`;
+/* ---------------- Pantalla: Ajustes ---------------- */
+function renderAjustes() {
+  $('#info-cuenta').innerHTML = `${esc(sesion.nombre)} · usuario <strong>${esc(sesion.usuario)}</strong><br>
+    <span class="etiqueta-rol ${sesion.rol}">${esAdmin() ? '👑 Administrador' : '👤 Trabajador'}</span>`;
+  $('#info-datos').innerHTML = `${datos.productos.length} productos y ${datos.categorias.length} categorías en la nube.<br>
+    ${navigator.onLine ? '🟢 Conectado: los cambios se comparten al momento.' : '📴 Sin internet: los cambios se subirán cuando vuelva la señal.'}`;
+  if (esAdmin()) renderUsuarios();
 }
 
+function renderUsuarios() {
+  const lista = datos.usuarios
+    .filter((u) => !u.reemplazadoPor)
+    .sort((a, b) => (b.activo - a.activo) || (a.rol === b.rol ? 0 : a.rol === 'admin' ? -1 : 1) || String(a.nombre).localeCompare(String(b.nombre), 'es'));
+  if (!lista.length) {
+    $('#lista-usuarios').innerHTML = '<li class="vacio">Cargando…</li>';
+    return;
+  }
+  $('#lista-usuarios').innerHTML = lista.map((u) => {
+    const etiqueta = !u.activo
+      ? '<span class="etiqueta-rol inactivo">Desactivado</span>'
+      : `<span class="etiqueta-rol ${u.rol}">${u.rol === 'admin' ? '👑 Administrador' : '👤 Trabajador'}</span>`;
+    const yo = u.uid === sesion.uid ? ' (usted)' : '';
+    return `
+      <li class="item ${u.activo ? '' : 'inactivo'}">
+        <div class="item-info" data-accion="usuario" data-id="${u.uid}">
+          <div class="item-nombre">${esc(u.nombre)}${yo}</div>
+          <div class="item-sub">usuario: ${esc(u.usuario)} · ${etiqueta}</div>
+        </div>
+        ${u.uid === sesion.uid ? '' : `<button class="btn-icono-peq" data-accion="usuario" data-id="${u.uid}" aria-label="Opciones">⋯</button>`}
+      </li>`;
+  }).join('');
+}
+
+/** Crea la cuenta en Firebase con una conexión aparte, para no cerrar la sesión del administrador. */
+async function crearCuenta(usuario, clave) {
+  const a2 = obtenerAuthSecundaria();
+  for (let version = 0; version < 5; version++) {
+    const email = correoPara(usuario, version ? Date.now().toString(36) : 0);
+    try {
+      const cred = await fb.createUserWithEmailAndPassword(a2, email, clave);
+      await fb.signOut(a2);
+      return { uid: cred.user.uid, email };
+    } catch (e) {
+      if (e.code !== 'auth/email-already-in-use') throw e;
+    }
+  }
+  throw new Error('No se pudo crear la cuenta');
+}
+
+function camposClave(prefijo) {
+  return `
+    <label class="etiqueta" for="${prefijo}-clave">Contraseña (mínimo 6 caracteres)</label>
+    <input id="${prefijo}-clave" class="input" type="password" autocomplete="new-password">
+    <label class="etiqueta" for="${prefijo}-clave2">Repita la contraseña</label>
+    <input id="${prefijo}-clave2" class="input" type="password" autocomplete="new-password">`;
+}
+
+function leerClaveNueva(prefijo, error) {
+  const clave = $(`#${prefijo}-clave`).value;
+  if (clave.length < 6) { error('La contraseña debe tener al menos 6 caracteres.'); return null; }
+  if (clave !== $(`#${prefijo}-clave2`).value) { error('Las contraseñas no coinciden.'); return null; }
+  return clave;
+}
+
+async function nuevoUsuario() {
+  await modal({
+    titulo: 'Agregar usuario',
+    html: `
+      <label class="etiqueta" for="nu-rol">Tipo de usuario</label>
+      <select id="nu-rol" class="input">
+        <option value="trabajador">👤 Trabajador (solo ve y escanea)</option>
+        <option value="admin">👑 Administrador (control total)</option>
+      </select>
+      <label class="etiqueta" for="nu-nombre">Nombre</label>
+      <input id="nu-nombre" class="input" type="text" maxlength="40" placeholder="Ej. María López">
+      <label class="etiqueta" for="nu-usuario">Usuario (para entrar)</label>
+      <input id="nu-usuario" class="input" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="20" placeholder="Ej. maria">
+      ${camposClave('nu')}
+      <p id="nu-error" class="error" role="alert"></p>`,
+    botones: [
+      { texto: 'Cancelar', clase: 'btn-secundario', valor: null },
+      {
+        texto: 'Crear',
+        clase: 'btn-primario',
+        accion: async () => {
+          const error = (m) => { $('#nu-error').textContent = m; return MANTENER_ABIERTA; };
+          const rol = $('#nu-rol').value;
+          const nombre = $('#nu-nombre').value.trim().replace(/\s+/g, ' ');
+          const usuario = normalizarUsuario($('#nu-usuario').value);
+          if (!nombre) return error('Escriba el nombre.');
+          if (!USUARIO_VALIDO.test(usuario)) return error('El usuario debe tener de 3 a 20 letras o números, sin espacios.');
+          let mensaje = null;
+          const clave = leerClaveNueva('nu', (m) => { mensaje = m; });
+          if (!clave) return error(mensaje);
+          $('#nu-error').textContent = 'Creando…';
+          try {
+            const existe = await fb.getDoc(refDoc('acceso', usuario));
+            if (existe.exists()) return error('Ese usuario ya existe. Elija otro.');
+            const { uid, email } = await crearCuenta(usuario, clave);
+            const lote = fb.writeBatch(db);
+            lote.set(refDoc('usuarios', uid), { nombre, usuario, rol, activo: true, creado: new Date().toISOString() });
+            lote.set(refDoc('acceso', usuario), { email, uid });
+            await lote.commit();
+            aviso(`Usuario "${usuario}" creado ✔`);
+            return true;
+          } catch (e) {
+            console.error(e);
+            return error(mensajeError(e));
+          }
+        },
+      },
+    ],
+    alAbrir: () => $('#nu-nombre').focus(),
+  });
+}
+
+async function opcionesUsuario(uid) {
+  const u = datos.usuarios.find((x) => x.uid === uid);
+  if (!u || uid === sesion.uid) return;
+  const otroRol = u.rol === 'admin' ? 'trabajador' : 'admin';
+  const eleccion = await modal({
+    titulo: u.nombre,
+    html: `<p>Usuario: <strong>${esc(u.usuario)}</strong></p>
+      <div class="acceso-paso">
+        <button class="btn btn-secundario btn-bloque" data-op="clave">🔑 Cambiar contraseña</button>
+        ${u.activo ? `<button class="btn btn-secundario btn-bloque" data-op="rol">${otroRol === 'admin' ? '👑 Hacer administrador' : '👤 Hacer trabajador'}</button>` : ''}
+        <button class="btn ${u.activo ? 'btn-peligro' : 'btn-exito'} btn-bloque" data-op="activo">${u.activo ? '⛔ Desactivar (ya no podrá entrar)' : '✅ Activar de nuevo'}</button>
+      </div>`,
+    botones: [{ texto: 'Cerrar', clase: 'btn-contorno', valor: null }],
+    alAbrir: (cerrar) => {
+      $$('#modal-cuerpo [data-op]').forEach((b) => b.addEventListener('click', () => cerrar(b.dataset.op)));
+    },
+  });
+  if (eleccion === 'clave') cambiarClaveDe(u);
+  else if (eleccion === 'rol') {
+    const texto = otroRol === 'admin'
+      ? `¿Hacer administrador a ${u.nombre}? Podrá cambiar precios, borrar productos y manejar usuarios.`
+      : `¿Hacer trabajador a ${u.nombre}? Solo podrá ver y escanear.`;
+    if (await confirmar('Cambiar tipo de usuario', texto, 'Sí, cambiar')) {
+      enNube(fb.updateDoc(refDoc('usuarios', uid), { rol: otroRol }));
+      aviso('Tipo de usuario cambiado');
+    }
+  } else if (eleccion === 'activo') {
+    if (u.activo && !(await confirmar('Desactivar usuario', `${u.nombre} ya no podrá entrar a la app. Si tiene la app abierta, se le cerrará la sesión.`, 'Desactivar', true))) return;
+    enNube(fb.updateDoc(refDoc('usuarios', uid), { activo: !u.activo }));
+    aviso(u.activo ? 'Usuario desactivado' : 'Usuario activado');
+  }
+}
+
+/**
+ * Cambiar la contraseña de otra persona (plan gratis de Firebase):
+ * se crea una cuenta nueva con la contraseña nueva y la anterior queda desactivada.
+ * Para la persona es igual: entra con el mismo usuario y la contraseña nueva.
+ */
+async function cambiarClaveDe(u) {
+  await modal({
+    titulo: `Nueva contraseña para ${u.nombre}`,
+    html: `<p>Usuario: <strong>${esc(u.usuario)}</strong>. Si tiene la app abierta, deberá entrar de nuevo con la contraseña nueva.</p>
+      ${camposClave('cc')}<p id="cc-error" class="error" role="alert"></p>`,
+    botones: [
+      { texto: 'Cancelar', clase: 'btn-secundario', valor: null },
+      {
+        texto: 'Guardar',
+        clase: 'btn-primario',
+        accion: async () => {
+          const error = (m) => { $('#cc-error').textContent = m; return MANTENER_ABIERTA; };
+          let mensaje = null;
+          const clave = leerClaveNueva('cc', (m) => { mensaje = m; });
+          if (!clave) return error(mensaje);
+          $('#cc-error').textContent = 'Guardando…';
+          try {
+            const { uid, email } = await crearCuenta(u.usuario, clave);
+            const lote = fb.writeBatch(db);
+            lote.set(refDoc('usuarios', uid), {
+              nombre: u.nombre, usuario: u.usuario, rol: u.rol, activo: u.activo,
+              creado: new Date().toISOString(), reemplazaA: u.uid,
+            });
+            lote.update(refDoc('usuarios', u.uid), { activo: false, reemplazadoPor: uid });
+            lote.set(refDoc('acceso', u.usuario), { email, uid });
+            await lote.commit();
+            aviso('Contraseña cambiada ✔');
+            return true;
+          } catch (e) {
+            console.error(e);
+            return error(mensajeError(e));
+          }
+        },
+      },
+    ],
+    alAbrir: () => $('#cc-clave').focus(),
+  });
+}
+
+async function cambiarMiClave() {
+  await modal({
+    titulo: 'Cambiar mi contraseña',
+    html: `
+      <label class="etiqueta" for="mc-actual">Contraseña actual</label>
+      <input id="mc-actual" class="input" type="password" autocomplete="current-password">
+      ${camposClave('mc')}<p id="mc-error" class="error" role="alert"></p>`,
+    botones: [
+      { texto: 'Cancelar', clase: 'btn-secundario', valor: null },
+      {
+        texto: 'Guardar',
+        clase: 'btn-primario',
+        accion: async () => {
+          const error = (m) => { $('#mc-error').textContent = m; return MANTENER_ABIERTA; };
+          const actual = $('#mc-actual').value;
+          if (!actual) return error('Escriba su contraseña actual.');
+          let mensaje = null;
+          const clave = leerClaveNueva('mc', (m) => { mensaje = m; });
+          if (!clave) return error(mensaje);
+          $('#mc-error').textContent = 'Guardando…';
+          try {
+            const credencial = fb.EmailAuthProvider.credential(auth.currentUser.email, actual);
+            await fb.reauthenticateWithCredential(auth.currentUser, credencial);
+            await fb.updatePassword(auth.currentUser, clave);
+            aviso('Contraseña cambiada ✔');
+            return true;
+          } catch (e) {
+            console.error(e);
+            const c = e.code || '';
+            if (c === 'auth/invalid-credential' || c === 'auth/wrong-password') return error('La contraseña actual no es correcta.');
+            return error(mensajeError(e));
+          }
+        },
+      },
+    ],
+    alAbrir: () => $('#mc-actual').focus(),
+  });
+}
+
+/* ---------------- Respaldo ---------------- */
 async function exportarRespaldo() {
-  const contenido = JSON.stringify({ app: 'abarroterias-san-vicenta', version: 1, fecha: new Date().toISOString(), ...datos }, null, 2);
+  const contenido = JSON.stringify({
+    app: 'abarroterias-san-vicenta', version: 2, fecha: new Date().toISOString(),
+    categorias: datos.categorias, productos: datos.productos,
+  }, null, 2);
   const hoy = new Date().toISOString().slice(0, 10);
   const nombreArchivo = `respaldo-san-vicenta-${hoy}.json`;
   const archivo = new File([contenido], nombreArchivo, { type: 'application/json' });
@@ -755,42 +1247,103 @@ async function exportarRespaldo() {
   aviso('Respaldo descargado');
 }
 
-async function importarRespaldo(archivo) {
-  try {
-    const d = JSON.parse(await archivo.text());
-    if (!Array.isArray(d.productos) || !Array.isArray(d.categorias)) throw new Error('formato');
-    const productos = d.productos
-      .filter((p) => p && typeof p.nombre === 'string' && typeof p.precioVenta === 'number')
-      .map((p) => ({
-        id: String(p.id || nuevoId()),
-        codigo: limpiarCodigo(p.codigo),
-        nombre: p.nombre,
-        precioVenta: p.precioVenta,
-        precioCosto: typeof p.precioCosto === 'number' ? p.precioCosto : null,
-        lugarCompra: String(p.lugarCompra || ''),
-        categoriaId: p.categoriaId ? String(p.categoriaId) : null,
-        creado: p.creado || null,
-        actualizado: p.actualizado || null,
-      }));
-    const categorias = d.categorias
-      .filter((c) => c && c.id && typeof c.nombre === 'string')
-      .map((c) => ({ id: String(c.id), nombre: c.nombre }));
+/** Revisa y limpia los datos de un respaldo (o de la versión anterior de la app). */
+function limpiarRespaldo(d) {
+  if (!d || !Array.isArray(d.productos) || !Array.isArray(d.categorias)) throw new Error('formato');
+  const idValido = (id) => typeof id === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(id);
+  const categorias = d.categorias
+    .filter((c) => c && idValido(String(c.id)) && typeof c.nombre === 'string' && c.nombre.trim())
+    .map((c) => ({ id: String(c.id), nombre: c.nombre.trim() }));
+  const productos = d.productos
+    .filter((p) => p && typeof p.nombre === 'string' && p.nombre.trim() && typeof p.precioVenta === 'number')
+    .map((p) => ({
+      id: idValido(String(p.id)) ? String(p.id) : fb.doc(refColeccion('productos')).id,
+      codigo: limpiarCodigo(p.codigo),
+      nombre: p.nombre.trim(),
+      precioVenta: p.precioVenta,
+      precioCosto: typeof p.precioCosto === 'number' ? p.precioCosto : null,
+      lugarCompra: String(p.lugarCompra || ''),
+      categoriaId: p.categoriaId ? String(p.categoriaId) : null,
+      creado: p.creado || null,
+      actualizado: p.actualizado || null,
+      actualizadoPor: p.actualizadoPor || null,
+    }));
+  return { categorias, productos };
+}
 
-    const ok = await confirmar('Cargar respaldo',
-      `El archivo tiene ${productos.length} productos y ${categorias.length} categorías. Esto REEMPLAZARÁ los datos actuales de este teléfono. ¿Continuar?`,
-      'Reemplazar', true);
-    if (!ok) return;
-    datos = { categorias, productos };
-    guardarDatos();
-    aviso('Respaldo cargado ✔');
-    renderRespaldo();
+/** Sube a la nube productos y categorías (agrega o actualiza; no borra los demás). */
+async function subirDatos({ categorias, productos }) {
+  const ops = [
+    ...categorias.map((c) => (l) => l.set(refDoc('categorias', c.id), { nombre: c.nombre })),
+    ...productos.map(({ id, ...p }) => (l) => l.set(refDoc('productos', id), p)),
+  ];
+  await escribirEnGrupos(ops);
+}
+
+async function importarRespaldo(archivo) {
+  let contenido;
+  try {
+    contenido = limpiarRespaldo(JSON.parse(await archivo.text()));
   } catch (_) {
     alerta('Archivo no válido', 'Ese archivo no es un respaldo de Abarroterías San Vicenta.');
+    return;
+  }
+  const ok = await confirmar('Cargar respaldo',
+    `El archivo tiene ${contenido.productos.length} productos y ${contenido.categorias.length} categorías. Se agregarán a la nube (los que ya existen se actualizan con los datos del archivo). ¿Continuar?`,
+    'Cargar');
+  if (!ok) return;
+  aviso('Subiendo respaldo…');
+  try {
+    await subirDatos(contenido);
+    aviso('Respaldo cargado ✔');
+  } catch (e) {
+    console.error(e);
+    alerta('No se pudo cargar', mensajeError(e));
+  }
+}
+
+/** Datos guardados en el teléfono por la versión anterior de la app (sin nube). */
+function leerDatosAnteriores() {
+  try {
+    if (localStorage.getItem(CLAVE_MIGRADO)) return null;
+    const d = JSON.parse(localStorage.getItem(CLAVE_DATOS_ANTERIORES) || 'null');
+    if (!d || !Array.isArray(d.productos) || !d.productos.length) return null;
+    return limpiarRespaldo(d);
+  } catch (_) {
+    return null;
+  }
+}
+
+let migracionOfrecida = false;
+async function ofrecerMigracion() {
+  if (migracionOfrecida || !esAdmin()) return;
+  const anteriores = leerDatosAnteriores();
+  if (!anteriores) return;
+  migracionOfrecida = true;
+  const ok = await confirmar('Productos guardados en este teléfono',
+    `Este teléfono tiene ${anteriores.productos.length} productos de la versión anterior de la app. ¿Subirlos a la nube para que todos los vean?`,
+    'Subir a la nube');
+  if (!ok) return;
+  aviso('Subiendo productos…');
+  try {
+    await subirDatos(anteriores);
+    localStorage.setItem(CLAVE_MIGRADO, new Date().toISOString());
+    aviso(`${anteriores.productos.length} productos subidos ✔`);
+  } catch (e) {
+    console.error(e);
+    alerta('No se pudieron subir', mensajeError(e) + ' Se lo preguntaré de nuevo la próxima vez.');
+    migracionOfrecida = false;
   }
 }
 
 /* ---------------- Eventos ---------------- */
 function conectarEventos() {
+  // Acceso
+  $$('#acceso-elegir [data-rol]').forEach((b) => b.addEventListener('click', () => mostrarPasoAcceso('login', b.dataset.rol)));
+  $('#login-regresar').addEventListener('click', () => mostrarPasoAcceso('elegir'));
+  $('#form-login').addEventListener('submit', iniciarSesion);
+  $('#form-primer-admin').addEventListener('submit', crearPrimerAdmin);
+
   // Navegación inferior
   $$('.nav-btn').forEach((b) => b.addEventListener('click', () => irAPestana(b.dataset.vista)));
   $('#btn-atras').addEventListener('click', () => history.back());
@@ -864,7 +1417,16 @@ function conectarEventos() {
     else if (accion === 'filtrar') { filtroCategoria = id; $('#buscar').value = ''; irAPestana('productos'); }
   });
 
-  // Respaldo
+  // Ajustes
+  $('#btn-mi-clave').addEventListener('click', cambiarMiClave);
+  $('#btn-salir').addEventListener('click', async () => {
+    if (await confirmar('Cerrar sesión', '¿Desea salir? Para volver a entrar necesitará su usuario y contraseña.', 'Salir')) cerrarSesion();
+  });
+  $('#btn-nuevo-usuario').addEventListener('click', nuevoUsuario);
+  $('#lista-usuarios').addEventListener('click', (e) => {
+    const el = e.target.closest('[data-accion="usuario"]');
+    if (el) opcionesUsuario(el.dataset.id);
+  });
   $('#btn-exportar').addEventListener('click', exportarRespaldo);
   $('#btn-importar').addEventListener('click', () => $('#archivo-importar').click());
   $('#archivo-importar').addEventListener('change', (e) => {
@@ -873,27 +1435,33 @@ function conectarEventos() {
     if (archivo) importarRespaldo(archivo);
   });
 
-  // Si otra pestaña del navegador cambia los datos, recargarlos
-  window.addEventListener('storage', (e) => {
-    if (e.key === CLAVE_DATOS) { cargarDatos(); mostrar(history.state); }
-  });
+  // Aviso de sin internet
+  const actualizarConexion = () => {
+    $('#banda-sin-internet').classList.toggle('oculto', navigator.onLine);
+    if (sesion && (history.state || {}).vista === 'ajustes') renderAjustes();
+  };
+  window.addEventListener('online', actualizarConexion);
+  window.addEventListener('offline', actualizarConexion);
+  actualizarConexion();
 }
 
 /* ---------------- Funcionamiento sin internet ---------------- */
 function registrarServiceWorker() {
+  if (USAR_EMULADOR) return;
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
     navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Service worker no registrado', e));
   }
 }
 
-/* ---------------- Inicio ---------------- */
-function iniciar() {
-  cargarDatos();
-  conectarEventos();
-  pedirAlmacenamientoPersistente();
-  registrarServiceWorker();
-  history.replaceState({ vista: 'escanear' }, '');
-  mostrar({ vista: 'escanear' });
+/** Pide al navegador que no borre la copia local de los datos. */
+async function pedirAlmacenamientoPersistente() {
+  try {
+    if (navigator.storage && navigator.storage.persist && !(await navigator.storage.persisted())) {
+      await navigator.storage.persist();
+    }
+  } catch (_) { /* no es crítico */ }
 }
 
-document.addEventListener('DOMContentLoaded', iniciar);
+conectarEventos();
+registrarServiceWorker();
+pedirAlmacenamientoPersistente();
