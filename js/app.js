@@ -318,6 +318,7 @@ function refrescarVista() {
   const estado = history.state || {};
   if (!sesion || estado.escaner) return;
   if (estado.vista === 'formulario') { llenarSelectCategorias($('#f-categoria').value); return; }
+  if (estado.vista === 'factura') return; // no borrar lo que está revisando
   mostrar(estado, { sinScroll: true });
 }
 
@@ -577,10 +578,11 @@ const TITULOS = {
   ajustes: 'Ajustes',
   detalle: 'Datos del producto',
   noregistrado: 'Producto no registrado',
+  factura: 'Revisar factura',
   formulario: 'Producto',
 };
 const PESTANAS = ['escanear', 'productos', 'categorias', 'ajustes'];
-const SOLO_ADMIN = ['categorias', 'formulario'];
+const SOLO_ADMIN = ['categorias', 'formulario', 'factura'];
 let pestanaActual = 'escanear';
 
 /** modo: 'push' (nueva pantalla), 'replace' (sustituye la actual) */
@@ -624,6 +626,7 @@ function mostrar(estado, { sinScroll = false } = {}) {
     case 'detalle': renderDetalle(estado.id); break;
     case 'noregistrado': renderNoRegistrado(estado.codigo); break;
     case 'formulario': renderFormulario(estado); break;
+    case 'factura': renderFactura(); break;
   }
   if (!sinScroll) window.scrollTo(0, 0);
 }
@@ -903,8 +906,32 @@ function renderFormulario(estado) {
   llenarLugares();
   $('#f-error').textContent = '';
   actualizarGanancia();
+  // Código nuevo escaneado: ofrecer ponérselo a un producto que entró por factura (sin código)
+  const sinCodigo = ordenarPorNombre(datos.productos.filter((x) => !x.codigo));
+  const ofrecerVincular = !p && estado.codigo && sinCodigo.length > 0;
+  $('#f-vincular').classList.toggle('oculto', !ofrecerVincular);
+  if (ofrecerVincular) {
+    $('#f-vincular-producto').innerHTML = '<option value="">— Elija el producto —</option>' +
+      sinCodigo.map((x) => `<option value="${esc(x.id)}">${esc(x.nombre)} · ${q(x.precioVenta)}</option>`).join('');
+  }
   // Si ya viene el código, enfocar el nombre
-  setTimeout(() => (($('#f-codigo').value && !p) ? $('#f-nombre') : null)?.focus(), 150);
+  setTimeout(() => (($('#f-codigo').value && !p && !ofrecerVincular) ? $('#f-nombre') : null)?.focus(), 150);
+}
+
+/** Le pone el código escaneado a un producto que no tenía (entró por factura). */
+function vincularCodigo() {
+  const id = $('#f-vincular-producto').value;
+  const codigo = limpiarCodigo($('#f-codigo').value);
+  const p = productoPorId(id);
+  if (!p) { $('#f-error').textContent = 'Elija un producto de la lista.'; return; }
+  if (!codigo) { $('#f-error').textContent = 'Falta el código de barras.'; return; }
+  const otro = productoPorCodigo(codigo, id);
+  if (otro) { $('#f-error').textContent = `Ese código ya está registrado en "${otro.nombre}".`; return; }
+  const cambios = { codigo, actualizado: new Date().toISOString(), actualizadoPor: sesion.nombre };
+  ponerLocal(datos.productos, { id, ...cambios });
+  enNube(fb.updateDoc(refDoc('productos', id), cambios));
+  aviso('Código asignado ✔');
+  navegar({ vista: 'detalle', id }, 'replace');
 }
 
 function actualizarGanancia() {
@@ -1052,7 +1079,10 @@ function renderAjustes() {
     <span class="etiqueta-rol ${sesion.rol}">${esAdmin() ? '👑 Administrador' : '👤 Trabajador'}</span>`;
   $('#info-datos').innerHTML = `${datos.productos.length} productos y ${datos.categorias.length} categorías en la nube.<br>
     ${navigator.onLine ? '🟢 Conectado: los cambios se comparten al momento.' : '📴 Sin internet: los cambios se subirán cuando vuelva la señal.'}`;
-  if (esAdmin()) renderUsuarios();
+  if (esAdmin()) {
+    renderUsuarios();
+    renderEstadoLlave();
+  }
 }
 
 function renderUsuarios() {
@@ -1278,6 +1308,346 @@ async function cambiarMiClave() {
   });
 }
 
+/* ---------------- Facturas con foto (solo administradores) ---------------- */
+const MARGEN_SUGERIDO = 0.25; // precio de venta sugerido para productos nuevos: costo + 25 %
+const CLAVE_LLAVE_IA = 'abarroterias_san_vicenta_llave_ia'; // la llave queda SOLO en este teléfono
+
+const llaveIA = {
+  leer: () => { try { return localStorage.getItem(CLAVE_LLAVE_IA) || ''; } catch (_) { return ''; } },
+  guardar: (llave) => localStorage.setItem(CLAVE_LLAVE_IA, llave),
+  borrar: () => localStorage.removeItem(CLAVE_LLAVE_IA),
+};
+
+let moduloFacturas = null;
+async function cargarModuloFacturas() {
+  if (!moduloFacturas) moduloFacturas = await import('./facturas.js');
+  return moduloFacturas;
+}
+
+let facturaActual = null; // { proveedor, fecha, advertencias, lineas[] }
+
+const precioTexto = (n) => (n === null || n === undefined || Number.isNaN(n) ? '' : Number(n).toFixed(2));
+function ventaSugerida(costo) {
+  if (costo === null || costo === undefined || Number.isNaN(costo)) return null;
+  return Math.ceil(costo * (1 + MARGEN_SUGERIDO) * 4) / 4; // redondeado hacia arriba a Q0.25
+}
+
+function renderEstadoLlave() {
+  const llave = llaveIA.leer();
+  $('#estado-llave-ia').textContent = llave
+    ? `✅ Llave guardada en este teléfono (termina en …${llave.slice(-4)}).`
+    : '❌ Este teléfono todavía no tiene llave.';
+  $('#btn-llave-ia').textContent = llave ? '🔑 Cambiar o quitar llave' : '🔑 Poner llave';
+}
+
+async function configurarLlave() {
+  const hayLlave = !!llaveIA.leer();
+  const botones = [{ texto: 'Cancelar', clase: 'btn-secundario', valor: null }];
+  if (hayLlave) {
+    botones.push({ texto: 'Quitar llave', clase: 'btn-peligro', valor: 'quitar' });
+  }
+  botones.push({
+    texto: 'Guardar',
+    clase: 'btn-primario',
+    accion: async () => {
+      const error = (m) => { $('#llave-error').textContent = m; return MANTENER_ABIERTA; };
+      const llave = $('#llave-input').value.trim();
+      if (!llave) return error('Pegue la llave.');
+      $('#llave-error').textContent = 'Revisando la llave…';
+      try {
+        const m = await cargarModuloFacturas();
+        await m.probarLlave(llave);
+      } catch (e) {
+        const m = await cargarModuloFacturas();
+        return error(m.mensajeErrorIA(e) || 'No se pudo revisar la llave.');
+      }
+      llaveIA.guardar(llave);
+      return 'guardada';
+    },
+  });
+  const r = await modal({
+    titulo: '🔑 Llave para leer facturas',
+    html: `
+      <p>Cómo conseguirla:</p>
+      <ol class="pasos">
+        <li>Entre a <strong>console.anthropic.com</strong> y cree su cuenta.</li>
+        <li>En <strong>Billing</strong>, cargue saldo (por ejemplo USD 5).</li>
+        <li>En <strong>API keys</strong>, toque <strong>Create key</strong> y copie la llave (empieza con <code>sk-ant-</code>).</li>
+      </ol>
+      <label class="etiqueta" for="llave-input">Pegue la llave aquí</label>
+      <input id="llave-input" class="input" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="sk-ant-…">
+      <p id="llave-error" class="error" role="alert"></p>`,
+    botones,
+    alAbrir: () => $('#llave-input').focus(),
+  });
+  if (r === 'guardada') aviso('Llave guardada en este teléfono ✔');
+  if (r === 'quitar' && await confirmar('Quitar llave', 'Este teléfono ya no podrá leer facturas hasta que ponga una llave de nuevo.', 'Quitar', true)) {
+    llaveIA.borrar();
+    aviso('Llave quitada');
+  }
+  renderEstadoLlave();
+}
+
+function escanearFactura() {
+  if (!llaveIA.leer()) {
+    confirmar('Falta la llave',
+      'Para leer facturas con foto primero hay que poner la llave de la inteligencia artificial en ⚙️ Ajustes → Lectura de facturas.',
+      'Ir a Ajustes').then((ir) => { if (ir) irAPestana('ajustes'); });
+    return;
+  }
+  if (!navigator.onLine) {
+    alerta('Sin internet', 'Para leer facturas se necesita internet. Lo demás de la app sí funciona sin señal.');
+    return;
+  }
+  cargarModuloFacturas().catch(() => {}); // ir cargándolo mientras toma la foto
+  $('#foto-factura').click();
+}
+
+async function procesarFactura(archivo) {
+  const control = new AbortController();
+  let terminado = false;
+  modal({
+    titulo: '📄 Leyendo la factura…',
+    html: '<div class="cargando" aria-hidden="true"></div><p class="centrado">Esto tarda de 20 a 60 segundos.<br>No cierre la app.</p>',
+    botones: [{ texto: 'Cancelar', clase: 'btn-contorno', valor: 'cancelar' }],
+  }).then((v) => { if (!terminado && v === 'cancelar') control.abort(); });
+
+  let m = null;
+  try {
+    m = await cargarModuloFacturas();
+    const foto = await m.prepararFoto(archivo);
+    if (control.signal.aborted) return;
+    const resultado = await m.leerFactura(llaveIA.leer(), foto, { productos: datos.productos, categorias: datos.categorias }, control.signal);
+    terminado = true;
+    cerrarModal();
+    if (!resultado.esFactura || !resultado.lineas.length) {
+      alerta('No se encontraron productos', resultado.esFactura
+        ? 'No se pudo leer ningún producto. Intente con una foto más clara, derecha y con buena luz.'
+        : 'La foto no parece una factura o recibo de compra.');
+      return;
+    }
+    facturaActual = armarFactura(resultado);
+    navegar({ vista: 'factura' });
+  } catch (e) {
+    terminado = true;
+    cerrarModal();
+    if (control.signal.aborted) return;
+    console.error(e);
+    const mensaje = m ? m.mensajeErrorIA(e) : mensajeError(e);
+    if (mensaje) alerta('No se pudo leer la factura', mensaje);
+  }
+}
+
+function armarFactura(r) {
+  return {
+    proveedor: r.proveedor || '',
+    fecha: r.fecha || '',
+    advertencias: r.advertencias || [],
+    lineas: r.lineas.map((l) => ({
+      descripcion: l.descripcion || '',
+      incluir: true,
+      productoId: l.productoId && productoPorId(l.productoId) ? l.productoId : '',
+      nombre: l.nombre || l.descripcion || '',
+      costo: precioTexto(l.costoUnitario),
+      venta: precioTexto(ventaSugerida(l.costoUnitario)),
+      ventaEditada: false,
+      categoriaId: l.categoriaId || '',
+      cantidad: l.cantidad,
+      unidadesPorPaquete: l.unidadesPorPaquete,
+      totalLinea: l.totalLinea,
+      confianza: l.confianza,
+      nota: l.nota,
+    })),
+  };
+}
+
+function renderLineaFactura(l, i) {
+  const existente = l.productoId ? productoPorId(l.productoId) : null;
+  const opcionesProductos = ordenarPorNombre([...datos.productos])
+    .map((p) => `<option value="${esc(p.id)}" ${p.id === l.productoId ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('');
+  const opcionesCategorias = ordenarPorNombre([...datos.categorias])
+    .map((c) => `<option value="${esc(c.id)}" ${c.id === l.categoriaId ? 'selected' : ''}>${esc(c.nombre)}</option>`).join('');
+  const insignia = { alta: '', media: '<span class="insignia media">Revisar</span>', baja: '<span class="insignia baja">⚠️ Revisar bien</span>' }[l.confianza] || '';
+  const detalle = [
+    l.cantidad ? `Cantidad: ${l.cantidad}` : '',
+    l.unidadesPorPaquete > 1 ? `${l.unidadesPorPaquete} u por paquete` : '',
+    typeof l.totalLinea === 'number' ? `Total: ${q(l.totalLinea)}` : '',
+  ].filter(Boolean).join(' · ');
+  let antes = '';
+  if (existente) {
+    const nuevo = leerPrecio(l.costo);
+    const viejo = existente.precioCosto;
+    let flecha = '';
+    if (typeof viejo === 'number' && typeof nuevo === 'number' && !Number.isNaN(nuevo)) {
+      if (nuevo > viejo + 0.004) flecha = ' <span class="negativo">▲ subió</span>';
+      else if (nuevo < viejo - 0.004) flecha = ' <span class="positivo">▼ bajó</span>';
+      else flecha = ' (igual)';
+    }
+    antes = `<p class="pequeno texto-suave">Antes: ${q(viejo)}${flecha}</p>`;
+  }
+  return `
+    <li class="tarjeta linea-factura ${l.incluir ? '' : 'excluida'}" data-i="${i}">
+      <label class="fila-check">
+        <input type="checkbox" data-campo="incluir" ${l.incluir ? 'checked' : ''}>
+        <span>Incluir</span> ${insignia}
+      </label>
+      <p class="pequeno texto-suave">Factura: “${esc(l.descripcion)}”${detalle ? '<br>' + esc(detalle) : ''}</p>
+      <label class="etiqueta">Producto</label>
+      <select class="input" data-campo="productoId">
+        <option value="" ${l.productoId ? '' : 'selected'}>🆕 Producto nuevo</option>
+        ${opcionesProductos}
+      </select>
+      ${existente ? '' : `
+        <label class="etiqueta">Nombre</label>
+        <input class="input" type="text" maxlength="80" data-campo="nombre" value="${esc(l.nombre)}">`}
+      <div class="dos-columnas">
+        <div>
+          <label class="etiqueta">Costo por unidad</label>
+          <div class="input-moneda"><span>Q</span><input class="input" type="text" inputmode="decimal" data-campo="costo" value="${esc(l.costo)}"></div>
+          ${antes}
+        </div>
+        <div>
+          <label class="etiqueta">Precio de venta</label>
+          ${existente
+            ? `<p class="valor-fijo">${q(existente.precioVenta)}</p><p class="pequeno texto-suave">No se cambia</p>`
+            : `<div class="input-moneda"><span>Q</span><input class="input" type="text" inputmode="decimal" data-campo="venta" value="${esc(l.venta)}"></div>
+               <p class="pequeno texto-suave">Sugerido (+${Math.round(MARGEN_SUGERIDO * 100)} %)</p>`}
+        </div>
+      </div>
+      ${existente ? '' : `
+        <label class="etiqueta">Categoría</label>
+        <select class="input" data-campo="categoriaId">
+          <option value="">Sin categoría</option>${opcionesCategorias}
+        </select>`}
+      ${l.nota ? `<p class="nota">💬 ${esc(l.nota)}</p>` : ''}
+    </li>`;
+}
+
+function renderFactura() {
+  if (!facturaActual) { irAPestana('escanear'); return; }
+  const f = facturaActual;
+  $('#vista-factura').innerHTML = `
+    <div class="tarjeta">
+      <label class="etiqueta" for="fa-proveedor">Proveedor / lugar de compra</label>
+      <input id="fa-proveedor" class="input" type="text" maxlength="60" data-campo="proveedor" value="${esc(f.proveedor)}">
+      ${f.fecha ? `<p class="texto-suave">Fecha de la factura: ${esc(f.fecha)}</p>` : ''}
+      <p id="fa-resumen" class="texto-suave"></p>
+      ${f.advertencias.map((a) => `<p class="advertencia">⚠️ ${esc(a)}</p>`).join('')}
+      <p class="pequeno texto-suave">Revise cada producto antes de guardar. Puede corregir cualquier dato o quitar la ✓ de "Incluir".</p>
+    </div>
+    <ul class="lista" id="fa-lineas">${f.lineas.map(renderLineaFactura).join('')}</ul>
+    <p id="fa-error" class="error" role="alert"></p>
+    <button id="fa-guardar" class="btn btn-primario btn-bloque btn-grande">💾 Guardar</button>
+    <button id="fa-cancelar" class="btn btn-contorno btn-bloque">Descartar factura</button>`;
+  actualizarResumenFactura();
+}
+
+function actualizarResumenFactura() {
+  const incluidas = facturaActual.lineas.filter((l) => l.incluir);
+  const existentes = incluidas.filter((l) => l.productoId).length;
+  const nuevos = incluidas.length - existentes;
+  $('#fa-resumen').textContent = `${facturaActual.lineas.length} productos leídos · ${existentes} ya registrados (se actualiza su costo) · ${nuevos} nuevos`;
+  $('#fa-guardar').textContent = `💾 Guardar ${incluidas.length} producto${incluidas.length === 1 ? '' : 's'}`;
+}
+
+function alCambiarFactura(e) {
+  const el = e.target.closest('[data-campo]');
+  if (!el || !facturaActual) return;
+  const campo = el.dataset.campo;
+  if (campo === 'proveedor') { facturaActual.proveedor = el.value; return; }
+  const li = el.closest('[data-i]');
+  const i = Number(li.dataset.i);
+  const l = facturaActual.lineas[i];
+  if (campo === 'incluir') {
+    l.incluir = el.checked;
+    li.classList.toggle('excluida', !l.incluir);
+    actualizarResumenFactura();
+  } else if (campo === 'productoId') {
+    if (e.type !== 'change' || l.productoId === el.value) return;
+    l.productoId = el.value;
+    li.outerHTML = renderLineaFactura(l, i);
+    actualizarResumenFactura();
+  } else if (campo === 'costo') {
+    l.costo = el.value;
+    if (!l.ventaEditada) {
+      l.venta = precioTexto(ventaSugerida(leerPrecio(l.costo)));
+      const venta = li.querySelector('[data-campo="venta"]');
+      if (venta) venta.value = l.venta;
+    }
+  } else if (campo === 'venta') {
+    l.venta = el.value;
+    l.ventaEditada = true;
+  } else if (campo === 'nombre' || campo === 'categoriaId') {
+    l[campo] = el.value;
+  }
+}
+
+function guardarFactura() {
+  if (!facturaActual || !esAdmin()) return;
+  const error = (msg, i) => {
+    $('#fa-error').textContent = msg;
+    const li = i === undefined ? null : $(`#fa-lineas [data-i="${i}"]`);
+    (li || $('#fa-error')).scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+  const proveedor = facturaActual.proveedor.trim();
+  const ahora = new Date().toISOString();
+  const ops = [];
+  let guardados = 0;
+
+  // Primero revisar todo, después guardar
+  const revisadas = [];
+  for (const [i, l] of facturaActual.lineas.entries()) {
+    if (!l.incluir) continue;
+    const costo = leerPrecio(l.costo);
+    const nombreMostrado = l.productoId ? productoPorId(l.productoId)?.nombre : l.nombre;
+    if (costo === null || Number.isNaN(costo)) return error(`Revise el costo de "${nombreMostrado || l.descripcion}". Ejemplo: 7.50`, i);
+    if (l.productoId) {
+      if (!productoPorId(l.productoId)) return error('Uno de los productos elegidos ya no existe. Elija otro.', i);
+      revisadas.push({ l, costo });
+    } else {
+      const nombre = l.nombre.trim().replace(/\s+/g, ' ');
+      if (!nombre) return error(`Escriba el nombre del producto “${l.descripcion}”.`, i);
+      let venta = leerPrecio(l.venta);
+      if (Number.isNaN(venta)) return error(`Revise el precio de venta de "${nombre}". Ejemplo: 9.50`, i);
+      if (venta === null) venta = ventaSugerida(costo);
+      revisadas.push({ l, costo, nombre, venta });
+    }
+  }
+  if (!revisadas.length) return error('No hay productos marcados para guardar.');
+
+  for (const { l, costo, nombre, venta } of revisadas) {
+    if (l.productoId) {
+      const p = productoPorId(l.productoId);
+      const alias = [...new Set([...(Array.isArray(p.aliasFactura) ? p.aliasFactura : []), l.descripcion].filter(Boolean))].slice(-10);
+      const cambios = { precioCosto: costo, aliasFactura: alias, actualizado: ahora, actualizadoPor: sesion.nombre };
+      if (proveedor) cambios.lugarCompra = proveedor;
+      ponerLocal(datos.productos, { id: p.id, ...cambios });
+      ops.push((lote) => lote.update(refDoc('productos', p.id), cambios));
+    } else {
+      const ref = fb.doc(refColeccion('productos'));
+      const nuevo = {
+        codigo: '', nombre, precioVenta: venta, precioCosto: costo, lugarCompra: proveedor,
+        categoriaId: l.categoriaId || null, aliasFactura: l.descripcion ? [l.descripcion] : [],
+        creado: ahora, actualizado: ahora, actualizadoPor: sesion.nombre,
+      };
+      ponerLocal(datos.productos, { id: ref.id, ...nuevo });
+      ops.push((lote) => lote.set(ref, nuevo));
+    }
+    guardados++;
+  }
+  enNube(escribirEnGrupos(ops));
+  facturaActual = null;
+  aviso(`${guardados} producto${guardados === 1 ? '' : 's'} guardado${guardados === 1 ? '' : 's'} ✔`);
+  irAPestana('productos');
+}
+
+async function cancelarFactura() {
+  if (await confirmar('Descartar factura', 'No se guardará nada de esta factura.', 'Descartar', true)) {
+    facturaActual = null;
+    irAPestana('escanear');
+  }
+}
+
 /* ---------------- Respaldo ---------------- */
 async function exportarRespaldo() {
   const contenido = JSON.stringify({
@@ -1328,6 +1698,7 @@ function limpiarRespaldo(d) {
       creado: p.creado || null,
       actualizado: p.actualizado || null,
       actualizadoPor: p.actualizadoPor || null,
+      aliasFactura: Array.isArray(p.aliasFactura) ? p.aliasFactura.filter((a) => typeof a === 'string').slice(-10) : [],
     }));
   return { categorias, productos };
 }
@@ -1422,6 +1793,20 @@ function conectarEventos() {
     abrirCodigo(codigo);
   });
   $('#btn-nuevo-sin-codigo').addEventListener('click', () => navegar({ vista: 'formulario' }));
+  $('#btn-factura').addEventListener('click', escanearFactura);
+  $('#foto-factura').addEventListener('change', (e) => {
+    const archivo = e.target.files[0];
+    e.target.value = '';
+    if (archivo) procesarFactura(archivo);
+  });
+  $('#btn-llave-ia').addEventListener('click', configurarLlave);
+  $('#f-vincular-btn').addEventListener('click', vincularCodigo);
+  $('#vista-factura').addEventListener('input', alCambiarFactura);
+  $('#vista-factura').addEventListener('change', alCambiarFactura);
+  $('#vista-factura').addEventListener('click', (e) => {
+    if (e.target.closest('#fa-guardar')) guardarFactura();
+    else if (e.target.closest('#fa-cancelar')) cancelarFactura();
+  });
 
   // Lista de productos
   $('#buscar').addEventListener('input', renderListaProductos);
