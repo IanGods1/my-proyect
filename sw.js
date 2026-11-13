@@ -1,11 +1,13 @@
 /* Guarda la app en el teléfono para que abra sin internet.
    Si cambia algún archivo de la app, suba el número de VERSION. */
-const VERSION = 'san-vicenta-v1';
+const VERSION = 'san-vicenta-v2';
 const ARCHIVOS = [
   './',
   './index.html',
   './css/styles.css',
   './js/app.js',
+  './js/escaner.js',
+  './lib/firebase.js',
   './lib/zxing.min.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
@@ -28,11 +30,13 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+  // Firebase y otros servidores: pasan directo (no se guardan aquí)
+  if (new URL(e.request.url).origin !== location.origin) return;
   e.respondWith(
     caches.match(e.request, { ignoreSearch: true }).then((enCache) => {
       if (enCache) return enCache;
       return fetch(e.request).then((resp) => {
-        if (resp && resp.ok && new URL(e.request.url).origin === location.origin) {
+        if (resp && resp.ok) {
           const copia = resp.clone();
           caches.open(VERSION).then((c) => c.put(e.request, copia));
         }

@@ -1,0 +1,89 @@
+rules_version = '2';
+
+// Reglas de seguridad de Abarroterías San Vicenta.
+// Copie todo este texto en Firebase: Firestore Database → Reglas → Publicar.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function ruta(coleccion, id) {
+      return /databases/$(database)/documents/$(coleccion)/$(id);
+    }
+    function conSesion() {
+      return request.auth != null;
+    }
+    // Usuario con sesión, registrado en la app y no desactivado
+    function activo() {
+      return conSesion()
+        && exists(ruta('usuarios', request.auth.uid))
+        && get(ruta('usuarios', request.auth.uid)).data.activo == true;
+    }
+    function esAdmin() {
+      return activo() && get(ruta('usuarios', request.auth.uid)).data.rol == 'admin';
+    }
+    // Solo durante la primera configuración: crear el administrador principal
+    function esPrimerAdmin() {
+      return conSesion()
+        && !exists(ruta('config', 'inicial'))
+        && existsAfter(ruta('config', 'inicial'))
+        && getAfter(ruta('config', 'inicial')).data.uid == request.auth.uid;
+    }
+    function usuarioValido(d) {
+      return d.keys().hasAll(['nombre', 'usuario', 'rol', 'activo'])
+        && d.nombre is string && d.nombre.size() > 0 && d.nombre.size() <= 40
+        && d.usuario is string && d.usuario.matches('^[a-z0-9._]{3,20}$')
+        && d.rol in ['admin', 'trabajador']
+        && d.activo is bool;
+    }
+
+    // Marca de que la app ya tiene administrador principal (cualquiera puede ver si existe)
+    match /config/inicial {
+      allow get: if true;
+      allow create: if conSesion()
+        && request.resource.data.uid == request.auth.uid
+        && existsAfter(ruta('usuarios', request.auth.uid));
+      allow update, delete: if false;
+    }
+
+    // Usuario → correo interno para iniciar sesión (solo se puede consultar uno por nombre)
+    match /acceso/{usuario} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if esAdmin() || (esPrimerAdmin() && request.resource.data.uid == request.auth.uid);
+      allow update: if esAdmin();
+      allow delete: if false;
+    }
+
+    // Datos de cada persona (nombre, rol, si está activa)
+    match /usuarios/{uid} {
+      allow get: if conSesion() && (request.auth.uid == uid || esAdmin());
+      allow list: if esAdmin();
+      allow create: if usuarioValido(request.resource.data) && (
+        esAdmin() ||
+        (uid == request.auth.uid && esPrimerAdmin() && request.resource.data.rol == 'admin' && request.resource.data.activo == true)
+      );
+      // Un administrador no puede quitarse a sí mismo el rol ni desactivarse
+      allow update: if esAdmin() && usuarioValido(request.resource.data) && (
+        uid != request.auth.uid ||
+        (request.resource.data.rol == 'admin' && request.resource.data.activo == true)
+      );
+      allow delete: if false;
+    }
+
+    // Productos: todos los usuarios activos los ven; solo administradores los cambian
+    match /productos/{id} {
+      allow read: if activo();
+      allow create, update: if esAdmin()
+        && request.resource.data.nombre is string && request.resource.data.nombre.size() > 0
+        && request.resource.data.precioVenta is number && request.resource.data.precioVenta >= 0;
+      allow delete: if esAdmin();
+    }
+
+    // Categorías: igual que productos
+    match /categorias/{id} {
+      allow read: if activo();
+      allow create, update: if esAdmin()
+        && request.resource.data.nombre is string && request.resource.data.nombre.size() > 0;
+      allow delete: if esAdmin();
+    }
+  }
+}
