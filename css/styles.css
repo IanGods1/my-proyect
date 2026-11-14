@@ -397,3 +397,7 @@ body.rol-trabajador .solo-admin { display: none !important; }
 }
 @keyframes girar { to { transform: rotate(360deg); } }
 .modal-botones .btn:nth-child(3):last-child { grid-column: 1 / -1; }
+
+/* Logo de la tienda (imagen) */
+.acceso-logo img { width: 96px; height: 96px; display: block; margin: 0 auto; }
+img.marca-icono { width: 40px; height: 40px; flex-shrink: 0; }
