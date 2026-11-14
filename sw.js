@@ -1,6 +1,6 @@
 /* Guarda la app en el teléfono para que abra sin internet.
    Si cambia algún archivo de la app, suba el número de VERSION. */
-const VERSION = 'san-vicenta-v5';
+const VERSION = 'san-vicenta-v6';
 const ARCHIVOS = [
   './',
   './index.html',
@@ -16,6 +16,7 @@ const ARCHIVOS = [
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',
   './icons/apple-touch-icon.png',
+  './icons/tienda.png',
 ];
 
 self.addEventListener('install', (e) => {
