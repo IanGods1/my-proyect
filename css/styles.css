@@ -745,3 +745,40 @@ button.hoja-negocio {
 @media (max-width: 360px) {
   .nav-btn { font-size: 0.6rem; letter-spacing: -0.3px; }
 }
+
+/* ============================================================
+   Ventanas con teclado: arriba y compactas, para que el teclado
+   del teléfono no tape los botones
+   ============================================================ */
+.modal {
+  top: var(--arriba-visible, 0px);
+  bottom: auto;
+  height: var(--alto-visible, 100dvh);
+}
+.modal-caja { max-height: calc(var(--alto-visible, 100dvh) - 24px); }
+.modal.con-teclado {
+  align-items: flex-start;
+  padding-top: max(12px, env(safe-area-inset-top));
+}
+.modal.con-teclado .modal-caja { padding: 16px 18px 14px; border-radius: 22px; }
+.modal.con-teclado h2 { font-size: 1.15rem; margin-bottom: 6px; }
+.modal.con-teclado .modal-caja p { margin-bottom: 6px; }
+.modal.con-teclado .etiqueta { margin: 8px 0 4px; font-size: 0.9rem; }
+.modal.con-teclado .input { min-height: 48px; padding: 10px 12px; font-size: 1.05rem; }
+.modal.con-teclado .input-cantidad { min-height: 54px; font-size: 1.7rem; }
+.modal.con-teclado .inv-costo-grande { font-size: 2.1rem; margin-top: 0; }
+.modal.con-teclado .error { margin: 6px 0 0; min-height: 0; }
+.modal.con-teclado .error:empty { display: none; }
+.modal.con-teclado .modal-botones { margin-top: 12px; gap: 8px; }
+.modal.con-teclado .modal-botones .btn { min-height: 46px; padding: 8px 12px; font-size: 1rem; }
+.modal.con-teclado .inv-resultados { max-height: 34vh; }
+
+/* "Quitar de la hoja": enlace rojo pequeño en lugar de botón grande */
+.modal-botones .btn.btn-quitar {
+  grid-column: 1 / -1;
+  background: none; border: none; box-shadow: none;
+  color: var(--rojo); min-height: 36px; font-size: 0.92rem; font-weight: 700; padding: 4px;
+}
+/* Mantener el espacio de la "Q" y de la lupa en las casillas compactas */
+.modal.con-teclado .input-moneda .input { padding-left: 34px; }
+.modal.con-teclado .buscador .input { padding-left: 46px; }
