@@ -1657,10 +1657,8 @@ async function cancelarFactura() {
 // La hoja se guarda en el teléfono después de cada cambio: si se cierra la app
 // o se apaga el teléfono, sigue donde quedó.
 const CLAVE_INVENTARIO = 'abarroterias_vc_inventario';
-const NOMBRE_NEGOCIO = 'ABARROTERÍAS VC';
-const FILAS_POR_PAGINA = 35; // filas por imagen al enviar
 
-let inventario = null; // { inicio, quien, lineas: [{ productoId, codigo, nombre, costo, cantidad, manual }] }
+let inventario = null; // { inicio, negocio, quien, lineas: [{ productoId, codigo, nombre, costo, cantidad, manual }] }
 
 function cargarInventario() {
   try {
@@ -1699,7 +1697,12 @@ function fechaInventario() {
     f.toLocaleTimeString('es-GT', { hour: 'numeric', minute: '2-digit' });
 }
 
+/** Letra tipo ticket (Share Tech Mono, incluida en la app en fonts/). */
+const LETRA_TICKET = '"Share Tech Mono"';
+const cargarLetraTicket = () => (document.fonts ? document.fonts.load(`27px ${LETRA_TICKET}`).catch(() => {}) : Promise.resolve());
+
 function renderInventario(resaltar = -1) {
+  cargarLetraTicket(); // lista antes de dibujar el PDF
   const v = $('#vista-inventario');
   if (!inventario) {
     v.innerHTML = `
@@ -1727,7 +1730,7 @@ function renderInventario(resaltar = -1) {
     </div>
     <div class="hoja">
       <div class="hoja-encabezado">
-        <div class="hoja-negocio">${esc(NOMBRE_NEGOCIO)}</div>
+        <button type="button" class="hoja-negocio" data-inv="negocio" aria-label="Cambiar nombre del negocio">${esc(negocioInventario().toUpperCase())}${ico('editar', 'hoja-editar')}</button>
         <div class="hoja-sub">Inventario · ${esc(fechaInventario())}</div>
         <div class="hoja-sub">Contó: ${esc(inventario.quien || '')}</div>
       </div>
@@ -1737,8 +1740,8 @@ function renderInventario(resaltar = -1) {
       <p class="hoja-pie">${inventario.lineas.length} producto${inventario.lineas.length === 1 ? '' : 's'} · ${textoCantidad(unidadesInventario())} unidades
         ${inventario.lineas.length ? '<br>Toque un producto para corregir la cantidad o quitarlo.' : ''}</p>
     </div>
-    <button class="btn btn-primario btn-bloque btn-grande" data-inv="enviar">${ico('compartir')}Enviar por WhatsApp</button>
-    <button class="btn btn-contorno btn-bloque" data-inv="terminar">${ico('eliminar')}Terminar y borrar hoja</button>`;
+    <button class="btn btn-primario btn-bloque btn-compacto" data-inv="enviar">${ico('compartir')}Enviar por WhatsApp</button>
+    <button class="btn-enlace" data-inv="terminar">${ico('eliminar')}Terminar y borrar hoja</button>`;
   if (resaltar >= 0) {
     const fila = v.querySelector(`.hoja-fila[data-i="${resaltar}"]`);
     if (fila) fila.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1750,6 +1753,7 @@ function alTocarInventario(e) {
   if (!el) return;
   const accion = el.dataset.inv;
   if (accion === 'nuevo') nuevoInventario();
+  else if (accion === 'negocio') cambiarNegocioInventario();
   else if (accion === 'escanear') escanearParaInventario();
   else if (accion === 'buscar') buscarParaInventario();
   else if (accion === 'editar') editarLineaInventario(Number(el.dataset.i));
@@ -1757,8 +1761,49 @@ function alTocarInventario(e) {
   else if (accion === 'terminar') terminarInventario();
 }
 
-function nuevoInventario() {
-  inventario = { inicio: new Date().toISOString(), quien: sesion.nombre, lineas: [] };
+const CLAVE_ULTIMO_NEGOCIO = 'abarroterias_vc_ultimo_negocio';
+const negocioInventario = () => (inventario && inventario.negocio) || 'Abarroterías VC';
+
+/** Pide el nombre del negocio (recuerda el último que se usó). */
+async function pedirNombreNegocio(titulo, textoBoton, valor) {
+  return modal({
+    titulo,
+    html: `
+      <label class="etiqueta" for="inv-negocio">¿De qué negocio es el inventario?</label>
+      <input id="inv-negocio" class="input" type="text" maxlength="40" value="${esc(valor)}" placeholder="Ej. Abarroterías VC">
+      <p id="inv-negocio-error" class="error" role="alert"></p>`,
+    botones: [
+      { texto: 'Cancelar', clase: 'btn-secundario', valor: null },
+      {
+        texto: textoBoton,
+        clase: 'btn-primario',
+        accion: () => {
+          const nombre = $('#inv-negocio').value.trim().replace(/\s+/g, ' ');
+          if (!nombre) { $('#inv-negocio-error').textContent = 'Escriba el nombre del negocio.'; return MANTENER_ABIERTA; }
+          return nombre;
+        },
+      },
+    ],
+    alAbrir: () => { enterEnviaModal(); $('#inv-negocio').select(); },
+  });
+}
+
+async function nuevoInventario() {
+  let ultimo = 'Abarroterías VC';
+  try { ultimo = localStorage.getItem(CLAVE_ULTIMO_NEGOCIO) || ultimo; } catch (_) { /* nada */ }
+  const negocio = await pedirNombreNegocio('Nuevo inventario', 'Empezar', ultimo);
+  if (!negocio) return;
+  try { localStorage.setItem(CLAVE_ULTIMO_NEGOCIO, negocio); } catch (_) { /* nada */ }
+  inventario = { inicio: new Date().toISOString(), negocio, quien: sesion.nombre, lineas: [] };
+  guardarInventario();
+  renderInventario();
+}
+
+async function cambiarNegocioInventario() {
+  const negocio = await pedirNombreNegocio('Nombre del negocio', 'Guardar', negocioInventario());
+  if (!negocio) return;
+  inventario.negocio = negocio;
+  try { localStorage.setItem(CLAVE_ULTIMO_NEGOCIO, negocio); } catch (_) { /* nada */ }
   guardarInventario();
   renderInventario();
 }
@@ -2020,111 +2065,213 @@ async function terminarInventario() {
   renderInventario();
 }
 
-/** Dibuja la hoja (una página) como imagen blanca, lista para WhatsApp. */
-function dibujarPaginaInventario(lineas, inicio, pagina, totalPaginas) {
-  const W = 1080;
-  const M = 60;
-  const FILA = 64;
-  const ENCABEZADO = 250;
-  const PIE = pagina === totalPaginas ? 230 : 120;
-  const H = ENCABEZADO + 80 + Math.max(lineas.length, 1) * FILA + PIE;
-  const canvas = document.createElement('canvas');
-  canvas.width = W;
-  canvas.height = H;
-  const c = canvas.getContext('2d');
-  const fuente = (peso, tam) => `${peso} ${tam}px -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
-  const cortar = (texto, ancho) => {
-    if (c.measureText(texto).width <= ancho) return texto;
-    while (texto.length > 1 && c.measureText(texto + '…').width > ancho) texto = texto.slice(0, -1);
-    return texto + '…';
+/* ---- Ticket en PDF (como los de supermercado) ---- */
+const TICKET_ANCHO = 864;        // píxeles (80 mm de papel)
+const TICKET_ALTO_MAXIMO = 9000; // si es más largo, sigue en otra página del PDF
+const TICKET_PAPEL_MM = 80;
+
+/** Arma las filas del ticket: texto de ancho fijo, como una impresora de supermercado. */
+function filasTicket(columnas) {
+  const filas = [];
+  const mayus = (t) => String(t).toUpperCase();
+  const dinero = (n) => formatoQ.format(n);
+  const linea = (car) => ({ t: car.repeat(columnas) });
+  const ambos = (izq, der, cols = columnas) => {
+    const espacio = cols - der.length - 1;
+    const i = izq.length > espacio ? izq.slice(0, espacio - 1) + '…' : izq;
+    return i + ' '.repeat(cols - i.length - der.length) + der;
   };
-  const dinero = (n) => 'Q ' + formatoQ.format(n);
-
-  c.fillStyle = '#ffffff';
-  c.fillRect(0, 0, W, H);
-  // Encabezado
-  c.fillStyle = '#1d4fd8';
-  c.fillRect(0, 0, W, 14);
-  c.fillStyle = '#0b1530';
-  c.textAlign = 'center';
-  c.font = fuente(800, 54);
-  c.fillText(NOMBRE_NEGOCIO, W / 2, 100);
-  c.font = fuente(600, 32);
-  c.fillStyle = '#334';
-  c.fillText(`Inventario · ${fechaInventario()}`, W / 2, 152);
-  c.font = fuente(400, 28);
-  c.fillStyle = '#556';
-  c.fillText(`Contó: ${inventario.quien || ''}${totalPaginas > 1 ? `   ·   Página ${pagina} de ${totalPaginas}` : ''}`, W / 2, 198);
-
-  // Encabezados de columnas
-  let y = ENCABEZADO;
-  c.fillStyle = '#eef2fb';
-  c.fillRect(M - 16, y, W - 2 * (M - 16), 64);
-  c.fillStyle = '#223';
-  c.font = fuente(700, 28);
-  c.textAlign = 'left';
-  c.fillText('Producto', M, y + 42);
-  c.textAlign = 'right';
-  c.fillText('Cant.', 650, y + 42);
-  c.fillText('Costo', 830, y + 42);
-  c.fillText('Total', W - M, y + 42);
-  y += 80;
-
-  // Filas
-  lineas.forEach((l, k) => {
-    if (k % 2 === 1) { c.fillStyle = '#f6f7fb'; c.fillRect(M - 16, y - 6, W - 2 * (M - 16), FILA); }
-    c.fillStyle = '#111';
-    c.font = fuente(500, 30);
-    c.textAlign = 'left';
-    c.fillText(cortar(`${inicio + k + 1}. ${l.nombre}${l.manual ? ' *' : ''}`, 650 - M - 110), M, y + 38);
-    c.textAlign = 'right';
-    c.fillText(textoCantidad(l.cantidad), 650, y + 38);
-    c.fillStyle = '#444';
-    c.fillText(dinero(l.costo), 830, y + 38);
-    c.fillStyle = '#111';
-    c.font = fuente(700, 30);
-    c.fillText(dinero(totalDeLinea(l)), W - M, y + 38);
-    y += FILA;
-  });
-
-  // Pie
-  y += 20;
-  c.strokeStyle = '#0b1530';
-  c.lineWidth = 4;
-  c.beginPath(); c.moveTo(M - 16, y); c.lineTo(W - M + 16, y); c.stroke();
-  if (pagina === totalPaginas) {
-    c.textAlign = 'left';
-    c.fillStyle = '#334';
-    c.font = fuente(500, 28);
-    c.fillText(`${inventario.lineas.length} productos · ${textoCantidad(unidadesInventario())} unidades`, M, y + 60);
-    if (inventario.lineas.some((l) => l.manual)) {
-      c.font = fuente(400, 24);
-      c.fillStyle = '#b4232f';
-      c.fillText('* Producto no registrado en la app', M, y + 100);
+  const partir = (texto, cols) => {
+    const palabras = texto.split(' ');
+    const salida = [];
+    let actual = '';
+    for (const p of palabras) {
+      if ((actual + ' ' + p).trim().length <= cols) actual = (actual + ' ' + p).trim();
+      else {
+        if (actual) salida.push(actual);
+        actual = p.length > cols ? p.slice(0, cols) : p;
+      }
     }
-    c.textAlign = 'right';
-    c.fillStyle = '#0b1530';
-    c.font = fuente(700, 34);
-    c.fillText('TOTAL', W - M, y + 58);
-    c.font = fuente(800, 64);
-    c.fillStyle = '#1d4fd8';
-    c.fillText(dinero(totalInventario()), W - M, y + 140);
-  } else {
-    c.textAlign = 'center';
-    c.fillStyle = '#556';
-    c.font = fuente(500, 28);
-    c.fillText('Continúa en la página siguiente…', W / 2, y + 64);
+    if (actual) salida.push(actual);
+    return salida;
+  };
+  const f = new Date(inventario.inicio);
+  const fecha = f.toLocaleDateString('es-GT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const hora = f.toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit', hour12: false });
+  const codigo = 'INV-' + f.toISOString().slice(0, 16).replace(/[-:T]/g, '');
+
+  partir(mayus(negocioInventario()), Math.floor(columnas / 1.6)).forEach((t) => filas.push({ t, centro: true, tam: 1.6, negrita: true }));
+  filas.push({ t: 'INVENTARIO DE MERCADERÍA', centro: true });
+  filas.push({ t: '(PRECIOS DE COSTO)', centro: true });
+  filas.push({ t: '', alto: 0.5 });
+  filas.push(linea('-'));
+  filas.push({ t: ambos(`FECHA: ${fecha}`, `HORA: ${hora}`) });
+  filas.push({ t: `CONTÓ: ${mayus(inventario.quien || '')}` });
+  filas.push({ t: `No.: ${codigo}` });
+  filas.push(linea('-'));
+  filas.push({ t: ambos('DESCRIPCIÓN', 'TOTAL'), negrita: true });
+  filas.push({ t: ambos('  CANT x COSTO', ''), negrita: true });
+  filas.push(linea('-'));
+  inventario.lineas.forEach((l) => {
+    partir(mayus(l.nombre) + (l.manual ? ' *' : ''), columnas).forEach((t) => filas.push({ t }));
+    filas.push({ t: ambos(`  ${textoCantidad(l.cantidad)} x ${dinero(l.costo)}`, dinero(totalDeLinea(l))) });
+  });
+  filas.push(linea('-'));
+  filas.push({ t: ambos('PRODUCTOS:', String(inventario.lineas.length)) });
+  filas.push({ t: ambos('UNIDADES:', textoCantidad(unidadesInventario())) });
+  filas.push(linea('='));
+  filas.push({ izq: 'TOTAL', der: 'Q ' + dinero(totalInventario()), tam: 1.6, negrita: true });
+  filas.push(linea('='));
+  if (inventario.lineas.some((l) => l.manual)) {
+    filas.push({ t: '* PRODUCTO NO REGISTRADO EN LA APP' });
   }
-  return canvas;
+  filas.push({ t: '', alto: 0.6 });
+  filas.push({ t: '*** FIN DEL INVENTARIO ***', centro: true, negrita: true });
+  filas.push({ t: '', alto: 0.4 });
+  filas.push({ barras: codigo });
+  filas.push({ t: codigo, centro: true, tam: 0.85 });
+  return filas;
 }
 
-/** Convierte la imagen en archivo sin esperas (el iPhone pide compartir justo después del toque). */
-function canvasAArchivo(canvas, nombre) {
-  const datosUrl = canvas.toDataURL('image/png');
-  const binario = atob(datosUrl.split(',')[1]);
+/** Dibuja el ticket en una o varias páginas (canvas). */
+function dibujarTicket() {
+  const W = TICKET_ANCHO;
+  const BORDE = 22;           // fondo gris alrededor del papel
+  const MARGEN = 34;          // margen dentro del papel
+  const TAM = 27;             // tamaño de letra normal
+  const ALTO_LINEA = 38;
+  const fuente = (tam, negrita) => `${negrita ? 700 : 400} ${Math.round(tam)}px ${LETRA_TICKET}, "Courier New", Courier, monospace`;
+  const medida = document.createElement('canvas').getContext('2d');
+  medida.font = fuente(TAM, true);
+  const anchoLetra = medida.measureText('M').width;
+  const columnas = Math.floor((W - 2 * BORDE - 2 * MARGEN) / anchoLetra);
+  const filas = filasTicket(columnas);
+  const altoDe = (fila) => (fila.barras ? 90 : ALTO_LINEA * (fila.alto ?? (fila.tam || 1)));
+
+  // Repartir filas en páginas
+  const paginas = [[]];
+  let alto = 0;
+  filas.forEach((fila) => {
+    if (alto + altoDe(fila) > TICKET_ALTO_MAXIMO - 140 && paginas[paginas.length - 1].length) { paginas.push([]); alto = 0; }
+    paginas[paginas.length - 1].push(fila);
+    alto += altoDe(fila);
+  });
+
+  return paginas.map((filasPagina, n) => {
+    const primera = n === 0;
+    const ultima = n === paginas.length - 1;
+    const extraArriba = primera ? 0 : ALTO_LINEA * 1.5;
+    const H = Math.ceil(2 * BORDE + 50 + extraArriba + filasPagina.reduce((s, f) => s + altoDe(f), 0) + 40);
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const c = canvas.getContext('2d');
+    // Fondo gris y papel con cortes en zigzag (como ticket arrancado)
+    c.fillStyle = '#e4e6ea';
+    c.fillRect(0, 0, W, H);
+    c.fillStyle = '#fffefa';
+    c.beginPath();
+    const diente = 14;
+    c.moveTo(BORDE, BORDE + (primera ? diente : 0));
+    for (let x = BORDE; x < W - BORDE; x += diente * 2) {
+      c.lineTo(x + diente, primera ? BORDE : BORDE);
+      c.lineTo(Math.min(x + diente * 2, W - BORDE), BORDE + (primera ? diente : 0));
+    }
+    c.lineTo(W - BORDE, H - BORDE - (ultima ? diente : 0));
+    for (let x = W - BORDE; x > BORDE; x -= diente * 2) {
+      c.lineTo(x - diente, H - BORDE);
+      c.lineTo(Math.max(x - diente * 2, BORDE), H - BORDE - (ultima ? diente : 0));
+    }
+    c.closePath();
+    c.shadowColor = 'rgba(0,0,0,0.18)';
+    c.shadowBlur = 12;
+    c.fill();
+    c.shadowBlur = 0;
+
+    let y = BORDE + 46;
+    c.fillStyle = '#1b1b1b';
+    c.textBaseline = 'alphabetic';
+    if (!primera) {
+      c.font = fuente(TAM * 0.9, true);
+      c.textAlign = 'center';
+      c.fillText(`${negocioInventario().toUpperCase()} · CONTINUACIÓN (PÁG. ${n + 1})`, W / 2, y);
+      y += ALTO_LINEA * 1.5;
+    }
+    filasPagina.forEach((fila) => {
+      if (fila.barras) {
+        // Código de barras decorativo (como los tickets)
+        let x = W / 2 - 220;
+        const semilla = fila.barras.split('').map((ch) => ch.charCodeAt(0));
+        for (let k = 0; x < W / 2 + 220; k++) {
+          const ancho = 2 + (semilla[k % semilla.length] + k) % 4;
+          if (k % 2 === 0) c.fillRect(x, y - 30, ancho, 70);
+          x += ancho;
+        }
+        y += 90;
+        return;
+      }
+      const tam = fila.tam || 1;
+      c.font = fuente(TAM * tam, fila.negrita);
+      if (fila.izq !== undefined) {
+        // Texto a la izquierda y monto pegado al borde derecho (TOTAL)
+        c.textAlign = 'left';
+        c.fillText(fila.izq, BORDE + MARGEN, y);
+        c.textAlign = 'right';
+        c.fillText(fila.der, BORDE + MARGEN + columnas * anchoLetra, y);
+      } else if (fila.centro) { c.textAlign = 'center'; c.fillText(fila.t, W / 2, y); }
+      else {
+        // Ancho fijo: cada letra en su columna (como impresora)
+        c.textAlign = 'left';
+        const paso = anchoLetra * tam;
+        const x0 = BORDE + MARGEN;
+        [...fila.t].forEach((ch, k) => { if (ch !== ' ') c.fillText(ch, x0 + k * paso, y); });
+      }
+      y += altoDe(fila);
+    });
+    return canvas;
+  });
+}
+
+/** Imagen JPEG en bytes, sin esperas (el iPhone pide compartir justo después del toque). */
+function canvasAJpeg(canvas) {
+  const binario = atob(canvas.toDataURL('image/jpeg', 0.92).split(',')[1]);
   const bytes = new Uint8Array(binario.length);
   for (let k = 0; k < binario.length; k++) bytes[k] = binario.charCodeAt(k);
-  return new File([bytes], nombre, { type: 'image/png' });
+  return bytes;
+}
+
+/** Arma un PDF sencillo: una página por imagen, de 80 mm de ancho (como papel de ticket). */
+function crearPdf(paginas) {
+  const cod = new TextEncoder();
+  const partes = [];
+  let largo = 0;
+  const posiciones = [];
+  const poner = (x) => { const b = typeof x === 'string' ? cod.encode(x) : x; partes.push(b); largo += b.length; };
+  const objeto = (n, ...contenido) => { posiciones[n] = largo; poner(`${n} 0 obj\n`); contenido.forEach(poner); poner('\nendobj\n'); };
+  const anchoPt = (TICKET_PAPEL_MM / 25.4) * 72;
+  const total = 2 + paginas.length * 3;
+
+  poner('%PDF-1.4\n');
+  poner(new Uint8Array([0x25, 0xe2, 0xe3, 0xcf, 0xd3, 0x0a]));
+  objeto(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  const hijos = paginas.map((_, k) => `${3 + k * 3} 0 R`).join(' ');
+  objeto(2, `<< /Type /Pages /Kids [${hijos}] /Count ${paginas.length} >>`);
+  paginas.forEach((pg, k) => {
+    const nPag = 3 + k * 3;
+    const altoPt = (pg.alto * anchoPt) / pg.ancho;
+    const w = anchoPt.toFixed(2);
+    const h = altoPt.toFixed(2);
+    objeto(nPag, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${w} ${h}] /Resources << /XObject << /Im${k} ${nPag + 1} 0 R >> >> /Contents ${nPag + 2} 0 R >>`);
+    objeto(nPag + 1, `<< /Type /XObject /Subtype /Image /Width ${pg.ancho} /Height ${pg.alto} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${pg.jpeg.length} >>\nstream\n`, pg.jpeg, '\nendstream');
+    const dibujo = `q ${w} 0 0 ${h} 0 0 cm /Im${k} Do Q`;
+    objeto(nPag + 2, `<< /Length ${dibujo.length} >>\nstream\n${dibujo}\nendstream`);
+  });
+  const inicioXref = largo;
+  let xref = `xref\n0 ${total + 1}\n0000000000 65535 f \n`;
+  for (let n = 1; n <= total; n++) xref += `${String(posiciones[n]).padStart(10, '0')} 00000 n \n`;
+  poner(xref);
+  poner(`trailer\n<< /Size ${total + 1} /Root 1 0 R >>\nstartxref\n${inicioXref}\n%%EOF\n`);
+  return new Blob(partes, { type: 'application/pdf' });
 }
 
 async function enviarInventario() {
@@ -2132,36 +2279,32 @@ async function enviarInventario() {
     alerta('Hoja vacía', 'Agregue al menos un producto antes de enviar.');
     return;
   }
-  const paginas = Math.ceil(inventario.lineas.length / FILAS_POR_PAGINA);
-  const fecha = new Date(inventario.inicio).toISOString().slice(0, 10);
-  const archivos = [];
-  for (let pg = 1; pg <= paginas; pg++) {
-    const inicio = (pg - 1) * FILAS_POR_PAGINA;
-    const canvas = dibujarPaginaInventario(inventario.lineas.slice(inicio, inicio + FILAS_POR_PAGINA), inicio, pg, paginas);
-    archivos.push(canvasAArchivo(canvas, `inventario-${fecha}${paginas > 1 ? `-pagina-${pg}` : ''}.png`));
-  }
-  const texto = `Inventario ${NOMBRE_NEGOCIO} · Total: ${q(totalInventario())}`;
-  if (navigator.canShare && navigator.canShare({ files: archivos })) {
+  // La letra ya se cargó al abrir el inventario; si no, se espera (casi nunca pasa)
+  if (document.fonts && !document.fonts.check(`27px ${LETRA_TICKET}`)) await cargarLetraTicket();
+  const paginas = dibujarTicket().map((canvas) => ({ jpeg: canvasAJpeg(canvas), ancho: canvas.width, alto: canvas.height }));
+  const pdf = crearPdf(paginas);
+  const nombreArchivo = `inventario-${normalizar(negocioInventario()).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${new Date(inventario.inicio).toISOString().slice(0, 10)}.pdf`;
+  const archivo = new File([pdf], nombreArchivo, { type: 'application/pdf' });
+  const titulo = `Inventario ${negocioInventario()} · Total: ${q(totalInventario())}`;
+  if (navigator.canShare && navigator.canShare({ files: [archivo] })) {
     try {
-      await navigator.share({ files: archivos, title: texto });
+      await navigator.share({ files: [archivo], title: titulo });
       return;
     } catch (e) {
       if (e && e.name === 'AbortError') return; // cerró el menú sin enviar
       console.warn('No se pudo compartir', e);
     }
   }
-  // Si el teléfono no puede compartir imágenes: se descargan
-  archivos.forEach((archivo) => {
-    const url = URL.createObjectURL(archivo);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = archivo.name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
-  });
-  aviso('Imagen descargada: envíela por WhatsApp');
+  // Si el teléfono no puede compartir archivos: se descarga el PDF
+  const url = URL.createObjectURL(archivo);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = archivo.name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  aviso('PDF descargado: envíelo por WhatsApp');
 }
 
 cargarInventario();

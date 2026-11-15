@@ -82,7 +82,8 @@ Cada persona puede cambiar su propia contraseña en ⚙️ **Ajustes → Cambiar
 
 ### 📋 Inventario (administradores y trabajadores)
 Para contar la mercadería y saber cuánto dinero hay en la tienda (a precio de costo).
-1. Pestaña **Inventario → Nuevo inventario**: aparece una hoja con el nombre del negocio, la fecha y quién cuenta.
+1. Pestaña **Inventario → Nuevo inventario**: escriba **de qué negocio** es (la app recuerda el último). Aparece una hoja
+   con ese nombre, la fecha y quién cuenta. Para cambiar el nombre, tóquelo en la hoja.
 2. Toque **Escanear** o **Buscar** (por nombre o código). Sale **solo el precio de costo**.
 3. Escriba **cuántos hay** (acepta decimales, por ejemplo 2.5 libras) y toque **Agregar**.
    La línea (cantidad × costo) se suma a la hoja y el **TOTAL** se actualiza solo.
@@ -91,7 +92,9 @@ Para contar la mercadería y saber cuánto dinero hay en la tienda (a precio de 
    - **Producto sin costo:** se escribe el costo ahí mismo (un administrador puede guardarlo en el producto).
    - **Producto que no está en la lista:** un administrador lo **registra** ahí mismo; un trabajador lo agrega a
      la hoja marcado **"no registrado"** para que el administrador lo registre después.
-4. **Enviar por WhatsApp:** se crea una **imagen** de la hoja (varias páginas si es muy larga); elija WhatsApp y el contacto.
+4. **Enviar por WhatsApp:** se crea un **PDF con forma de ticket de supermercado** (80 mm de ancho, letra de máquina,
+   productos, unidades y TOTAL; varias páginas si es muy largo). Elija WhatsApp y el contacto.
+   La hoja de la app y el PDF usan la misma letra de ticket (Share Tech Mono).
 5. **Terminar y borrar hoja** cuando ya la envió.
 
 La hoja se guarda **en el teléfono** después de cada cambio: si se cierra la app o se apaga el teléfono,
@@ -176,6 +179,7 @@ sw.js                  Service worker: guarda la app para usarla sin internet
 lib/firebase.js        Firebase (app, auth, firestore)
 lib/anthropic.js       SDK oficial de Anthropic (@anthropic-ai/sdk 1.8, generado con esbuild)
 lib/zxing.min.js       ZXing (licencia en lib/ZXING-LICENSE)
+fonts/                 Letra de ticket Share Tech Mono (licencia OFL en fonts/SHARE-TECH-MONO-LICENSE.txt)
 ```
 
 **Modelo de datos (Firestore)**
