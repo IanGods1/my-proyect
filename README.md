@@ -94,6 +94,7 @@ Para contar la mercadería y saber cuánto dinero hay en la tienda (a precio de 
      la hoja marcado **"no registrado"** para que el administrador lo registre después.
 4. **Enviar por WhatsApp:** se crea un **PDF con forma de ticket de supermercado** (80 mm de ancho, letra de máquina,
    productos, unidades y TOTAL; varias páginas si es muy largo). Elija WhatsApp y el contacto.
+   La hoja de la app y el PDF usan la misma letra de ticket (Share Tech Mono).
 5. **Terminar y borrar hoja** cuando ya la envió.
 
 La hoja se guarda **en el teléfono** después de cada cambio: si se cierra la app o se apaga el teléfono,
@@ -178,6 +179,7 @@ sw.js                  Service worker: guarda la app para usarla sin internet
 lib/firebase.js        Firebase (app, auth, firestore)
 lib/anthropic.js       SDK oficial de Anthropic (@anthropic-ai/sdk 1.8, generado con esbuild)
 lib/zxing.min.js       ZXing (licencia en lib/ZXING-LICENSE)
+fonts/                 Letra de ticket Share Tech Mono (licencia OFL en fonts/SHARE-TECH-MONO-LICENSE.txt)
 ```
 
 **Modelo de datos (Firestore)**

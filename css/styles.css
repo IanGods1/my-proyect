@@ -698,3 +698,50 @@ button.hoja-negocio {
   display: inline-flex; align-items: center; gap: 8px; font-family: inherit;
 }
 .hoja-editar { width: 18px; height: 18px; color: #8a93a8; }
+
+/* ============================================================
+   Letra tipo ticket (Share Tech Mono, licencia OFL, en fonts/)
+   ============================================================ */
+@font-face {
+  font-family: 'Share Tech Mono';
+  src: url('../fonts/share-tech-mono.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+.hoja { font-family: 'Share Tech Mono', 'Courier New', monospace; }
+.hoja .hoja-negocio { font-family: inherit; font-size: 1.6rem; letter-spacing: 1px; }
+.hoja .hoja-sub { font-size: 0.95rem; }
+.hoja .hoja-columnas { font-size: 0.85rem; letter-spacing: 0.5px; }
+.hoja .hoja-nombre { font-size: 1.08rem; font-weight: 400; }
+.hoja .hoja-producto small { font-size: 0.95rem; }
+.hoja .hoja-monto { font-size: 1.12rem; font-weight: 400; }
+.hoja .hoja-total span { font-size: 1.2rem; }
+.hoja .hoja-total strong { font-size: 1.9rem; font-weight: 400; }
+.hoja .hoja-pie, .hoja .hoja-vacia { font-size: 0.95rem; }
+.hoja .hoja-marca { font-family: system-ui, -apple-system, sans-serif; }
+
+/* Botones del inventario más pequeños */
+.btn-compacto { min-height: 48px; padding: 10px 16px; font-size: 1rem; }
+.btn-compacto .ico { width: 20px; height: 20px; }
+.btn-enlace {
+  align-self: center; display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: none; padding: 8px 12px; min-height: 40px;
+  color: var(--texto-suave); font: inherit; font-size: 0.92rem; font-weight: 600; cursor: pointer;
+}
+.btn-enlace .ico { width: 17px; height: 17px; }
+.btn-enlace:active { color: var(--rojo); }
+
+/* Barra de abajo: las pestañas siempre caben en la pantalla, aunque la letra sea más ancha */
+.navbar { grid-auto-columns: minmax(0, 1fr); }
+.nav-btn { min-width: 0; padding: 0 2px; letter-spacing: -0.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 360px) {
+  .nav-btn { font-size: 0.64rem; }
+  .nav-btn .ico { width: 24px; height: 24px; }
+}
+/* Que las 5 palabras se lean completas */
+.navbar { gap: 0; padding: 5px; }
+.nav-btn { font-size: 0.7rem; letter-spacing: -0.25px; padding: 0 1px; }
+@media (max-width: 360px) {
+  .nav-btn { font-size: 0.6rem; letter-spacing: -0.3px; }
+}

@@ -1697,7 +1697,12 @@ function fechaInventario() {
     f.toLocaleTimeString('es-GT', { hour: 'numeric', minute: '2-digit' });
 }
 
+/** Letra tipo ticket (Share Tech Mono, incluida en la app en fonts/). */
+const LETRA_TICKET = '"Share Tech Mono"';
+const cargarLetraTicket = () => (document.fonts ? document.fonts.load(`27px ${LETRA_TICKET}`).catch(() => {}) : Promise.resolve());
+
 function renderInventario(resaltar = -1) {
+  cargarLetraTicket(); // lista antes de dibujar el PDF
   const v = $('#vista-inventario');
   if (!inventario) {
     v.innerHTML = `
@@ -1735,8 +1740,8 @@ function renderInventario(resaltar = -1) {
       <p class="hoja-pie">${inventario.lineas.length} producto${inventario.lineas.length === 1 ? '' : 's'} · ${textoCantidad(unidadesInventario())} unidades
         ${inventario.lineas.length ? '<br>Toque un producto para corregir la cantidad o quitarlo.' : ''}</p>
     </div>
-    <button class="btn btn-primario btn-bloque btn-grande" data-inv="enviar">${ico('compartir')}Enviar por WhatsApp</button>
-    <button class="btn btn-contorno btn-bloque" data-inv="terminar">${ico('eliminar')}Terminar y borrar hoja</button>`;
+    <button class="btn btn-primario btn-bloque btn-compacto" data-inv="enviar">${ico('compartir')}Enviar por WhatsApp</button>
+    <button class="btn-enlace" data-inv="terminar">${ico('eliminar')}Terminar y borrar hoja</button>`;
   if (resaltar >= 0) {
     const fila = v.querySelector(`.hoja-fila[data-i="${resaltar}"]`);
     if (fila) fila.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -2135,7 +2140,7 @@ function dibujarTicket() {
   const MARGEN = 34;          // margen dentro del papel
   const TAM = 27;             // tamaño de letra normal
   const ALTO_LINEA = 38;
-  const fuente = (tam, negrita) => `${negrita ? 700 : 600} ${Math.round(tam)}px "Courier New", Courier, Menlo, monospace`;
+  const fuente = (tam, negrita) => `${negrita ? 700 : 400} ${Math.round(tam)}px ${LETRA_TICKET}, "Courier New", Courier, monospace`;
   const medida = document.createElement('canvas').getContext('2d');
   medida.font = fuente(TAM, true);
   const anchoLetra = medida.measureText('M').width;
@@ -2274,6 +2279,8 @@ async function enviarInventario() {
     alerta('Hoja vacía', 'Agregue al menos un producto antes de enviar.');
     return;
   }
+  // La letra ya se cargó al abrir el inventario; si no, se espera (casi nunca pasa)
+  if (document.fonts && !document.fonts.check(`27px ${LETRA_TICKET}`)) await cargarLetraTicket();
   const paginas = dibujarTicket().map((canvas) => ({ jpeg: canvasAJpeg(canvas), ancho: canvas.width, alto: canvas.height }));
   const pdf = crearPdf(paginas);
   const nombreArchivo = `inventario-${normalizar(negocioInventario()).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${new Date(inventario.inicio).toISOString().slice(0, 10)}.pdf`;
