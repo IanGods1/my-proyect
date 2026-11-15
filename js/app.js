@@ -1,5 +1,5 @@
 /* ============================================================
-   Abarroterías San Vicenta — Control de precios
+   Abarroterías VC — Control de precios
    - Administradores: control total (productos, categorías, usuarios).
    - Trabajadores: solo escanean, buscan y ven precios.
    - Los datos se guardan en Firebase (nube) y se comparten entre
@@ -58,6 +58,8 @@ const refColeccion = (nombre) => fb.collection(db, nombre);
 
 /* ---------------- Utilidades ---------------- */
 const $ = (sel) => document.querySelector(sel);
+/** Ícono de línea del juego de íconos de index.html (#i-nombre). */
+const ico = (nombre, clase = '') => `<svg class="ico${clase ? ' ' + clase : ''}" aria-hidden="true"><use href="#i-${nombre}"/></svg>`;
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
 function esc(texto) {
@@ -247,7 +249,7 @@ async function cerrarSesion(pendiente = null) {
 
 function actualizarChipUsuario() {
   if (!sesion) return;
-  $('#chip-usuario').textContent = (esAdmin() ? '👑 ' : '👤 ') + String(sesion.nombre).split(' ')[0];
+  $('#chip-usuario').innerHTML = ico(esAdmin() ? 'corona' : 'usuario') + esc(String(sesion.nombre).split(' ')[0]);
   document.body.classList.toggle('rol-admin', esAdmin());
   document.body.classList.toggle('rol-trabajador', !esAdmin());
 }
@@ -357,7 +359,7 @@ function mostrarPasoAcceso(paso, rol) {
   $('#form-primer-admin').classList.toggle('oculto', paso !== 'primer-admin');
   if (paso === 'login') {
     $('#form-login').dataset.rol = rol;
-    $('#login-titulo').textContent = rol === 'admin' ? '👑 Entrar como Administrador' : '👤 Entrar como Trabajador';
+    $('#login-titulo').innerHTML = rol === 'admin' ? ico('corona') + ' Entrar como Administrador' : ico('usuario') + ' Entrar como Trabajador';
     $('#login-error').textContent = '';
     $('#login-clave').value = '';
     setTimeout(() => $('#login-usuario').focus(), 100);
@@ -665,7 +667,7 @@ function renderEscanear() {
   $('#resumen').innerHTML = !cargado.productos ? '<div class="resumen-item" style="grid-column:1/-1"><span>Cargando productos…</span></div>' : `
     <div class="resumen-item"><strong>${total}</strong><span>productos</span></div>
     <div class="resumen-item"><strong>${datos.categorias.length}</strong><span>categorías</span></div>
-    ${sinCosto && esAdmin() ? `<div class="resumen-item" style="grid-column:1/-1"><span>⚠️ ${sinCosto} producto(s) sin precio de costo</span></div>` : ''}
+    ${sinCosto && esAdmin() ? `<div class="resumen-item" style="grid-column:1/-1"><span>${ico('alerta')} ${sinCosto} producto(s) sin precio de costo</span></div>` : ''}
   `;
 }
 
@@ -765,7 +767,7 @@ function renderListaProductos() {
   if (!total) {
     $('#lista-productos').innerHTML = esAdmin()
       ? `<li class="vacio">Todavía no hay productos.<br>
-          <button class="btn btn-primario" data-accion="ir-escanear">📷 Escanear el primero</button></li>`
+          <button class="btn btn-primario" data-accion="ir-escanear">${ico('escanear')}Escanear el primero</button></li>`
       : '<li class="vacio">Todavía no hay productos registrados.</li>';
     return;
   }
@@ -781,8 +783,8 @@ function renderListaProductos() {
   }
   const acciones = (p) => (esAdmin() ? `
       <div class="item-acciones">
-        <button class="btn-icono-peq" data-accion="editar" data-id="${p.id}" aria-label="Editar">✏️</button>
-        <button class="btn-icono-peq peligro" data-accion="eliminar" data-id="${p.id}" aria-label="Eliminar">🗑️</button>
+        <button class="btn-icono-peq" data-accion="editar" data-id="${p.id}" aria-label="Editar">${ico('editar')}</button>
+        <button class="btn-icono-peq peligro" data-accion="eliminar" data-id="${p.id}" aria-label="Eliminar">${ico('eliminar')}</button>
       </div>` : '');
   $('#lista-productos').innerHTML = lista.map((p) => `
     <li class="item">
@@ -846,10 +848,10 @@ function renderDetalle(id) {
     </div>
     ${esAdmin() ? `
     <div class="botones-fila">
-      <button class="btn btn-primario btn-grande" id="d-editar">✏️ Editar</button>
-      <button class="btn btn-peligro btn-grande" id="d-eliminar">🗑️ Eliminar</button>
+      <button class="btn btn-primario btn-grande" id="d-editar">${ico('editar')}Editar</button>
+      <button class="btn btn-peligro btn-grande" id="d-eliminar">${ico('eliminar')}Eliminar</button>
     </div>` : ''}
-    <button class="btn btn-secundario btn-bloque btn-grande" id="d-escanear">📷 Escanear otro</button>
+    <button class="btn btn-secundario btn-bloque btn-grande" id="d-escanear">${ico('escanear')}Escanear otro</button>
   `;
   if (esAdmin()) {
     $('#d-editar').onclick = () => navegar({ vista: 'formulario', id: p.id });
@@ -864,13 +866,13 @@ function renderDetalle(id) {
 function renderNoRegistrado(codigo) {
   $('#vista-detalle').innerHTML = `
     <div class="tarjeta no-registrado">
-      <div class="grande">🔎</div>
+      <div class="grande">${ico('buscar')}</div>
       <h2>Producto no registrado</h2>
       <p class="texto-suave">Este código todavía no está en la lista de precios:</p>
       <div class="codigo-grande">${esc(codigo || '')}</div>
       <p><strong>Avise al administrador</strong> para que lo registre.</p>
     </div>
-    <button class="btn btn-primario btn-bloque btn-grande" id="nr-escanear">📷 Escanear otro</button>
+    <button class="btn btn-primario btn-bloque btn-grande" id="nr-escanear">${ico('escanear')}Escanear otro</button>
   `;
   $('#nr-escanear').onclick = () => abrirEscaner((c) => abrirCodigo(c, 'replace'), { reemplazar: true });
 }
@@ -881,7 +883,7 @@ let formularioEstado = null;
 function llenarSelectCategorias(seleccion) {
   const opciones = ordenarPorNombre([...datos.categorias])
     .map((c) => `<option value="${esc(c.id)}">${esc(c.nombre)}</option>`).join('');
-  $('#f-categoria').innerHTML = `<option value="">Sin categoría</option>${opciones}<option value="__nueva">➕ Crear nueva categoría…</option>`;
+  $('#f-categoria').innerHTML = `<option value="">Sin categoría</option>${opciones}<option value="__nueva">+ Crear nueva categoría…</option>`;
   $('#f-categoria').value = categoriaPorId(seleccion) ? seleccion : '';
   $('#f-categoria').dataset.anterior = $('#f-categoria').value;
 }
@@ -1036,8 +1038,8 @@ function renderCategorias() {
           <div class="item-sub">${n} producto${n === 1 ? '' : 's'}</div>
         </div>
         <div class="item-acciones">
-          <button class="btn-icono-peq" data-accion="editar" data-id="${c.id}" aria-label="Editar">✏️</button>
-          <button class="btn-icono-peq peligro" data-accion="eliminar" data-id="${c.id}" aria-label="Eliminar">🗑️</button>
+          <button class="btn-icono-peq" data-accion="editar" data-id="${c.id}" aria-label="Editar">${ico('editar')}</button>
+          <button class="btn-icono-peq peligro" data-accion="eliminar" data-id="${c.id}" aria-label="Eliminar">${ico('eliminar')}</button>
         </div>
       </li>`;
   }).join('');
@@ -1076,9 +1078,9 @@ async function eliminarCategoria(id) {
 /* ---------------- Pantalla: Ajustes ---------------- */
 function renderAjustes() {
   $('#info-cuenta').innerHTML = `${esc(sesion.nombre)} · usuario <strong>${esc(sesion.usuario)}</strong><br>
-    <span class="etiqueta-rol ${sesion.rol}">${esAdmin() ? '👑 Administrador' : '👤 Trabajador'}</span>`;
+    <span class="etiqueta-rol ${sesion.rol}">${esAdmin() ? ico('corona') + ' Administrador' : ico('usuario') + ' Trabajador'}</span>`;
   $('#info-datos').innerHTML = `${datos.productos.length} productos y ${datos.categorias.length} categorías en la nube.<br>
-    ${navigator.onLine ? '🟢 Conectado: los cambios se comparten al momento.' : '📴 Sin internet: los cambios se subirán cuando vuelva la señal.'}`;
+    ${navigator.onLine ? ico('conectado', 'verde') + ' Conectado: los cambios se comparten al momento.' : ico('sin-internet', 'amarillo') + ' Sin internet: los cambios se subirán cuando vuelva la señal.'}`;
   if (esAdmin()) {
     renderUsuarios();
     renderEstadoLlave();
@@ -1096,7 +1098,7 @@ function renderUsuarios() {
   $('#lista-usuarios').innerHTML = lista.map((u) => {
     const etiqueta = !u.activo
       ? '<span class="etiqueta-rol inactivo">Desactivado</span>'
-      : `<span class="etiqueta-rol ${u.rol}">${u.rol === 'admin' ? '👑 Administrador' : '👤 Trabajador'}</span>`;
+      : `<span class="etiqueta-rol ${u.rol}">${u.rol === 'admin' ? ico('corona') + ' Administrador' : ico('usuario') + ' Trabajador'}</span>`;
     const yo = u.uid === sesion.uid ? ' (usted)' : '';
     return `
       <li class="item ${u.activo ? '' : 'inactivo'}">
@@ -1104,7 +1106,7 @@ function renderUsuarios() {
           <div class="item-nombre">${esc(u.nombre)}${yo}</div>
           <div class="item-sub">usuario: ${esc(u.usuario)} · ${etiqueta}</div>
         </div>
-        ${u.uid === sesion.uid ? '' : `<button class="btn-icono-peq" data-accion="usuario" data-id="${u.uid}" aria-label="Opciones">⋯</button>`}
+        ${u.uid === sesion.uid ? '' : `<button class="btn-icono-peq" data-accion="usuario" data-id="${u.uid}" aria-label="Opciones">${ico('opciones')}</button>`}
       </li>`;
   }).join('');
 }
@@ -1146,8 +1148,8 @@ async function nuevoUsuario() {
     html: `
       <label class="etiqueta" for="nu-rol">Tipo de usuario</label>
       <select id="nu-rol" class="input">
-        <option value="trabajador">👤 Trabajador (solo ve y escanea)</option>
-        <option value="admin">👑 Administrador (control total)</option>
+        <option value="trabajador">Trabajador (solo ve y escanea)</option>
+        <option value="admin">Administrador (control total)</option>
       </select>
       <label class="etiqueta" for="nu-nombre">Nombre</label>
       <input id="nu-nombre" class="input" type="text" maxlength="40" placeholder="Ej. María López">
@@ -1200,9 +1202,9 @@ async function opcionesUsuario(uid) {
     titulo: u.nombre,
     html: `<p>Usuario: <strong>${esc(u.usuario)}</strong></p>
       <div class="acceso-paso">
-        <button class="btn btn-secundario btn-bloque" data-op="clave">🔑 Cambiar contraseña</button>
-        ${u.activo ? `<button class="btn btn-secundario btn-bloque" data-op="rol">${otroRol === 'admin' ? '👑 Hacer administrador' : '👤 Hacer trabajador'}</button>` : ''}
-        <button class="btn ${u.activo ? 'btn-peligro' : 'btn-exito'} btn-bloque" data-op="activo">${u.activo ? '⛔ Desactivar (ya no podrá entrar)' : '✅ Activar de nuevo'}</button>
+        <button class="btn btn-secundario btn-bloque" data-op="clave">${ico('llave')}Cambiar contraseña</button>
+        ${u.activo ? `<button class="btn btn-secundario btn-bloque" data-op="rol">${otroRol === 'admin' ? ico('corona') + 'Hacer administrador' : ico('usuario') + 'Hacer trabajador'}</button>` : ''}
+        <button class="btn ${u.activo ? 'btn-peligro' : 'btn-exito'} btn-bloque" data-op="activo">${u.activo ? ico('bloquear') + 'Desactivar (ya no podrá entrar)' : ico('guardar') + 'Activar de nuevo'}</button>
       </div>`,
     botones: [{ texto: 'Cerrar', clase: 'btn-contorno', valor: null }],
     alAbrir: (cerrar) => {
@@ -1335,9 +1337,10 @@ function ventaSugerida(costo) {
 function renderEstadoLlave() {
   const llave = llaveIA.leer();
   $('#estado-llave-ia').textContent = llave
-    ? `✅ Llave guardada en este teléfono (termina en …${llave.slice(-4)}).`
-    : '❌ Este teléfono todavía no tiene llave.';
-  $('#btn-llave-ia').textContent = llave ? '🔑 Cambiar o quitar llave' : '🔑 Poner llave';
+    ? `Llave guardada en este teléfono (termina en …${llave.slice(-4)}).`
+    : 'Este teléfono todavía no tiene llave.';
+  $('#btn-llave-ia').innerHTML = ico('llave') + (llave ? 'Cambiar o quitar llave' : 'Poner llave');
+  $('#estado-llave-ia').classList.toggle('verde', !!llave);
 }
 
 async function configurarLlave() {
@@ -1366,7 +1369,7 @@ async function configurarLlave() {
     },
   });
   const r = await modal({
-    titulo: '🔑 Llave para leer facturas',
+    titulo: 'Llave para leer facturas',
     html: `
       <p>Cómo conseguirla:</p>
       <ol class="pasos">
@@ -1391,7 +1394,7 @@ async function configurarLlave() {
 function escanearFactura() {
   if (!llaveIA.leer()) {
     confirmar('Falta la llave',
-      'Para leer facturas con foto primero hay que poner la llave de la inteligencia artificial en ⚙️ Ajustes → Lectura de facturas.',
+      'Para leer facturas con foto primero hay que poner la llave de la inteligencia artificial en Ajustes → Lectura de facturas.',
       'Ir a Ajustes').then((ir) => { if (ir) irAPestana('ajustes'); });
     return;
   }
@@ -1407,7 +1410,7 @@ async function procesarFactura(archivo) {
   const control = new AbortController();
   let terminado = false;
   modal({
-    titulo: '📄 Leyendo la factura…',
+    titulo: 'Leyendo la factura…',
     html: '<div class="cargando" aria-hidden="true"></div><p class="centrado">Esto tarda de 20 a 60 segundos.<br>No cierre la app.</p>',
     botones: [{ texto: 'Cancelar', clase: 'btn-contorno', valor: 'cancelar' }],
   }).then((v) => { if (!terminado && v === 'cancelar') control.abort(); });
@@ -1467,7 +1470,7 @@ function renderLineaFactura(l, i) {
     .map((p) => `<option value="${esc(p.id)}" ${p.id === l.productoId ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('');
   const opcionesCategorias = ordenarPorNombre([...datos.categorias])
     .map((c) => `<option value="${esc(c.id)}" ${c.id === l.categoriaId ? 'selected' : ''}>${esc(c.nombre)}</option>`).join('');
-  const insignia = { alta: '', media: '<span class="insignia media">Revisar</span>', baja: '<span class="insignia baja">⚠️ Revisar bien</span>' }[l.confianza] || '';
+  const insignia = { alta: '', media: '<span class="insignia media">Revisar</span>', baja: `<span class="insignia baja">${ico('alerta')} Revisar bien</span>` }[l.confianza] || '';
   const detalle = [
     l.cantidad ? `Cantidad: ${l.cantidad}` : '',
     l.unidadesPorPaquete > 1 ? `${l.unidadesPorPaquete} u por paquete` : '',
@@ -1519,7 +1522,7 @@ function renderLineaFactura(l, i) {
         <select class="input" data-campo="categoriaId">
           <option value="">Sin categoría</option>${opcionesCategorias}
         </select>`}
-      ${l.nota ? `<p class="nota">💬 ${esc(l.nota)}</p>` : ''}
+      ${l.nota ? `<p class="nota">${ico('nota')} ${esc(l.nota)}</p>` : ''}
     </li>`;
 }
 
@@ -1532,12 +1535,12 @@ function renderFactura() {
       <input id="fa-proveedor" class="input" type="text" maxlength="60" data-campo="proveedor" value="${esc(f.proveedor)}">
       ${f.fecha ? `<p class="texto-suave">Fecha de la factura: ${esc(f.fecha)}</p>` : ''}
       <p id="fa-resumen" class="texto-suave"></p>
-      ${f.advertencias.map((a) => `<p class="advertencia">⚠️ ${esc(a)}</p>`).join('')}
+      ${f.advertencias.map((a) => `<p class="advertencia">${ico('alerta')} ${esc(a)}</p>`).join('')}
       <p class="pequeno texto-suave">Revise cada producto antes de guardar. Puede corregir cualquier dato o quitar la ✓ de "Incluir".</p>
     </div>
     <ul class="lista" id="fa-lineas">${f.lineas.map(renderLineaFactura).join('')}</ul>
     <p id="fa-error" class="error" role="alert"></p>
-    <button id="fa-guardar" class="btn btn-primario btn-bloque btn-grande">💾 Guardar</button>
+    <button id="fa-guardar" class="btn btn-primario btn-bloque btn-grande">${ico('guardar')}Guardar</button>
     <button id="fa-cancelar" class="btn btn-contorno btn-bloque">Descartar factura</button>`;
   actualizarResumenFactura();
 }
@@ -1547,7 +1550,7 @@ function actualizarResumenFactura() {
   const existentes = incluidas.filter((l) => l.productoId).length;
   const nuevos = incluidas.length - existentes;
   $('#fa-resumen').textContent = `${facturaActual.lineas.length} productos leídos · ${existentes} ya registrados (se actualiza su costo) · ${nuevos} nuevos`;
-  $('#fa-guardar').textContent = `💾 Guardar ${incluidas.length} producto${incluidas.length === 1 ? '' : 's'}`;
+  $('#fa-guardar').innerHTML = `${ico('guardar')}Guardar ${incluidas.length} producto${incluidas.length === 1 ? '' : 's'}`;
 }
 
 function alCambiarFactura(e) {
@@ -1661,7 +1664,7 @@ async function exportarRespaldo() {
   // En el teléfono se puede compartir directo (WhatsApp, Drive, correo…)
   if (navigator.canShare && navigator.canShare({ files: [archivo] })) {
     try {
-      await navigator.share({ files: [archivo], title: 'Respaldo San Vicenta' });
+      await navigator.share({ files: [archivo], title: 'Respaldo Abarroterías VC' });
       return;
     } catch (e) {
       if (e && e.name === 'AbortError') return;
@@ -1717,7 +1720,7 @@ async function importarRespaldo(archivo) {
   try {
     contenido = limpiarRespaldo(JSON.parse(await archivo.text()));
   } catch (_) {
-    alerta('Archivo no válido', 'Ese archivo no es un respaldo de Abarroterías San Vicenta.');
+    alerta('Archivo no válido', 'Ese archivo no es un respaldo de Abarroterías VC.');
     return;
   }
   const ok = await confirmar('Cargar respaldo',

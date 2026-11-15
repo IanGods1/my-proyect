@@ -401,3 +401,51 @@ body.rol-trabajador .solo-admin { display: none !important; }
 /* Logo de la tienda (imagen) */
 .acceso-logo img { width: 96px; height: 96px; display: block; margin: 0 auto; }
 img.marca-icono { width: 40px; height: 40px; flex-shrink: 0; }
+
+/* ============================================================
+   Íconos de línea (reemplazan a los emojis)
+   ============================================================ */
+.ico {
+  width: 1.2em; height: 1.2em;
+  fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  flex-shrink: 0; vertical-align: -0.22em;
+}
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
+.btn-gigante { gap: 12px; }
+.btn-gigante .btn-icono { width: 64px; height: 64px; stroke-width: 1.7; }
+.btn-gigante-2 { gap: 8px; }
+.btn-gigante-2 .ico { width: 40px; height: 40px; stroke-width: 1.8; }
+
+/* Barra de abajo */
+.nav-btn { gap: 5px; }
+.nav-btn .ico { width: 27px; height: 27px; stroke-width: 1.9; }
+.nav-btn.activo .ico { color: var(--azul-claro); }
+
+/* Botones pequeños y flotante */
+.btn-icono-peq { display: inline-flex; align-items: center; justify-content: center; }
+.btn-icono-peq .ico { width: 22px; height: 22px; }
+.fab { display: flex; align-items: center; justify-content: center; }
+.fab .ico { width: 32px; height: 32px; stroke-width: 2.4; }
+.btn-atras { display: flex; align-items: center; justify-content: center; }
+.btn-atras .ico { width: 28px; height: 28px; stroke-width: 2.4; }
+#f-escanear .ico { width: 26px; height: 26px; }
+
+/* Buscador */
+.buscador .buscador-icono { width: 22px; height: 22px; color: var(--texto-suave); }
+
+/* Encabezado y etiquetas */
+.chip-usuario { display: inline-flex; align-items: center; gap: 6px; }
+.chip-usuario .ico { width: 18px; height: 18px; color: var(--amarillo); }
+body.rol-trabajador .chip-usuario .ico { color: var(--azul-claro); }
+.etiqueta-rol { display: inline-flex; align-items: center; gap: 4px; }
+.etiqueta-rol .ico { width: 15px; height: 15px; }
+.acceso-subtitulo { display: flex; align-items: center; gap: 8px; }
+.acceso-subtitulo .ico { width: 24px; height: 24px; }
+.banda { display: flex; align-items: center; gap: 8px; }
+.no-registrado .grande .ico { width: 64px; height: 64px; color: var(--azul-claro); stroke-width: 1.6; }
+.insignia { display: inline-flex; align-items: center; gap: 4px; }
+.insignia .ico { width: 14px; height: 14px; }
+.advertencia .ico, .nota .ico { width: 18px; height: 18px; }
+.resumen-item .ico { color: var(--amarillo); }
+.ico.verde, .verde { color: var(--verde); }
+.ico.amarillo { color: var(--amarillo); }
