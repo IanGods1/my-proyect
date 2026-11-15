@@ -449,3 +449,188 @@ body.rol-trabajador .chip-usuario .ico { color: var(--azul-claro); }
 .resumen-item .ico { color: var(--amarillo); }
 .ico.verde, .verde { color: var(--verde); }
 .ico.amarillo { color: var(--amarillo); }
+
+/* ============================================================
+   ESTILO VIDRIO (glass)
+   Tarjetas y barras semitransparentes con desenfoque, bordes con
+   brillo y luces suaves en el fondo para que el vidrio se note.
+   ============================================================ */
+:root {
+  --vidrio: rgba(255, 255, 255, 0.06);
+  --vidrio-2: rgba(255, 255, 255, 0.1);
+  --vidrio-borde: rgba(255, 255, 255, 0.12);
+  --vidrio-brillo: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  --sombra: 0 10px 30px rgba(0, 0, 0, 0.3);
+  --desenfoque: blur(20px) saturate(160%);
+  --radio: 18px;
+  --nav-separacion: 10px; /* espacio entre la barra flotante y el borde de la pantalla */
+}
+
+/* Fondo con luces de color (fijo, detrás de todo) */
+body { background: transparent; }
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 12% 8%, rgba(47, 107, 255, 0.38), transparent 42%),
+    radial-gradient(circle at 92% 28%, rgba(0, 190, 255, 0.18), transparent 38%),
+    radial-gradient(circle at 25% 78%, rgba(120, 80, 255, 0.22), transparent 45%),
+    radial-gradient(circle at 85% 95%, rgba(47, 107, 255, 0.2), transparent 40%),
+    linear-gradient(180deg, #03060f 0%, #060d24 100%);
+}
+
+/* Superficies de vidrio */
+.tarjeta, .resumen-item, .selector-busqueda, .modal-caja, .chip-usuario, .btn-atras {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--vidrio-borde);
+  box-shadow: var(--vidrio-brillo), var(--sombra);
+  -webkit-backdrop-filter: var(--desenfoque);
+  backdrop-filter: var(--desenfoque);
+}
+/* En listas largas no se desenfoca (más fluido en el teléfono), pero se ve igual de vidrio */
+.item {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.025));
+  border: 1px solid var(--vidrio-borde);
+  box-shadow: var(--vidrio-brillo), 0 6px 18px rgba(0, 0, 0, 0.22);
+  border-radius: var(--radio);
+}
+.tarjeta, .resumen-item { border-radius: var(--radio); }
+.resumen-item strong { color: #9fbcff; text-shadow: 0 0 18px rgba(47, 107, 255, 0.45); }
+
+/* Campos de texto: vidrio oscuro */
+.input {
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid var(--vidrio-borde);
+  border-radius: 14px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+.input:focus { border-color: rgba(111, 155, 255, 0.8); box-shadow: 0 0 0 3px rgba(47, 107, 255, 0.25); }
+select.input option { background: #0b1836; }
+
+/* Botones */
+.btn { border-radius: 16px; }
+.btn-primario {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 55%),
+    linear-gradient(135deg, #4a86ff 0%, #2459e6 100%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 24px rgba(47, 107, 255, 0.35);
+}
+.btn-secundario {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--vidrio-borde);
+  box-shadow: var(--vidrio-brillo);
+  -webkit-backdrop-filter: var(--desenfoque);
+  backdrop-filter: var(--desenfoque);
+}
+.btn-contorno {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--vidrio-borde);
+  color: var(--texto-suave);
+}
+.btn-peligro {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0) 55%),
+    linear-gradient(135deg, #ff7282, #e8394f);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 8px 22px rgba(255, 92, 108, 0.28);
+}
+.btn-exito {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0) 55%),
+    linear-gradient(135deg, #3fe08a, #1fae5f);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.btn-gigante {
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at 30% 0%, rgba(255, 255, 255, 0.28), transparent 55%),
+    linear-gradient(135deg, #4a86ff 0%, #1f4fd6 100%);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 16px 40px rgba(47, 107, 255, 0.45);
+}
+.btn-icono-peq {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--vidrio-borde);
+  border-radius: 14px;
+  box-shadow: var(--vidrio-brillo);
+}
+.fab {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0) 55%),
+    linear-gradient(135deg, #4a86ff, #2459e6);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 12px 30px rgba(47, 107, 255, 0.5);
+}
+
+/* Chips de categorías y selector de búsqueda */
+.chip {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--vidrio-borde);
+}
+.chip.activo, .selector-opcion.activo {
+  background: linear-gradient(135deg, #4a86ff, #2459e6);
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 4px 14px rgba(47, 107, 255, 0.35);
+  color: #fff;
+}
+.selector-busqueda { border-radius: 18px; }
+.selector-opcion { border-radius: 14px; }
+.etiqueta-cat { background: rgba(111, 155, 255, 0.14); border: 1px solid rgba(111, 155, 255, 0.3); }
+
+/* Encabezado de vidrio */
+.topbar {
+  background: rgba(3, 6, 15, 0.42);
+  border-bottom: 1px solid var(--vidrio-borde);
+  -webkit-backdrop-filter: var(--desenfoque);
+  backdrop-filter: var(--desenfoque);
+}
+
+/* Barra de abajo flotante de vidrio */
+.navbar {
+  left: var(--nav-separacion);
+  right: var(--nav-separacion);
+  bottom: calc(env(safe-area-inset-bottom) + var(--nav-separacion));
+  padding: 6px;
+  padding-bottom: 6px;
+  gap: 4px;
+  border-radius: 28px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)), rgba(6, 12, 30, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 14px 40px rgba(0, 0, 0, 0.5);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+}
+.navbar::after { display: none; }
+.nav-btn { height: calc(var(--nav-alto) - 12px); border-radius: 22px; }
+.nav-btn.activo {
+  background: linear-gradient(160deg, rgba(111, 155, 255, 0.3), rgba(47, 107, 255, 0.14));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+body { padding-bottom: calc(var(--nav-alto) + env(safe-area-inset-bottom) + var(--nav-separacion) + 20px); }
+body.sin-sesion { padding-bottom: 0; }
+.fab { bottom: calc(var(--nav-alto) + env(safe-area-inset-bottom) + var(--nav-separacion) + 16px); }
+.aviso {
+  bottom: calc(var(--nav-alto) + env(safe-area-inset-bottom) + var(--nav-separacion) + 20px);
+  background: rgba(16, 33, 72, 0.7);
+  border: 1px solid rgba(111, 155, 255, 0.5);
+  -webkit-backdrop-filter: var(--desenfoque);
+  backdrop-filter: var(--desenfoque);
+}
+
+/* Ventanas emergentes */
+.modal { background: rgba(0, 0, 0, 0.45); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.modal-caja { border-radius: 24px; background: linear-gradient(160deg, rgba(40, 60, 110, 0.6), rgba(10, 18, 40, 0.7)); }
+
+/* Pantalla de entrada */
+.btn-gigante-2 { border-radius: 24px; }
+.acceso-logo img { filter: drop-shadow(0 10px 30px rgba(47, 107, 255, 0.55)); }
+
+/* Detalles */
+.banda { background: rgba(255, 204, 77, 0.12); border: 1px solid rgba(255, 204, 77, 0.45); -webkit-backdrop-filter: var(--desenfoque); backdrop-filter: var(--desenfoque); }
+.nota { background: rgba(255, 255, 255, 0.06); border: 1px solid var(--vidrio-borde); }
+.detalle-precio { text-shadow: 0 0 24px rgba(46, 204, 113, 0.35); }
