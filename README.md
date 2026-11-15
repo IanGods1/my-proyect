@@ -1,4 +1,4 @@
-# 🛒 Abarroterías San Vicenta
+# Abarroterías VC
 
 App para el teléfono que lleva el control de precios de la abarrotería.
 Sirve para escanear códigos de barras, guardar precios de venta y de costo, anotar el proveedor
@@ -98,7 +98,7 @@ Le toma foto a la factura del proveedor y la app sube los **nombres de los produ
 4. En la app: ⚙️ **Ajustes → Lectura de facturas → 🔑 Poner llave**, péguela y toque **Guardar**.
 
 **Usar:**
-1. 📷 Escanear → **📄 Escanear factura del proveedor** → tome la foto (derecha, con buena luz).
+1. 📷 Escanear → **📄 Escanear factura** → tome la foto (derecha, con buena luz).
 2. Espere de 20 a 60 segundos. Aparece la pantalla **Revisar factura**:
    - **Productos ya registrados**: se actualiza su **costo** (le muestra si subió ▲ o bajó ▼).
      El precio de venta **no se cambia**.
