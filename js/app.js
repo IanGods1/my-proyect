@@ -581,9 +581,10 @@ const TITULOS = {
   detalle: 'Datos del producto',
   noregistrado: 'Producto no registrado',
   factura: 'Revisar factura',
+  inventario: 'Inventario',
   formulario: 'Producto',
 };
-const PESTANAS = ['escanear', 'productos', 'categorias', 'ajustes'];
+const PESTANAS = ['escanear', 'productos', 'inventario', 'categorias', 'ajustes'];
 const SOLO_ADMIN = ['categorias', 'formulario', 'factura'];
 let pestanaActual = 'escanear';
 
@@ -629,6 +630,7 @@ function mostrar(estado, { sinScroll = false } = {}) {
     case 'noregistrado': renderNoRegistrado(estado.codigo); break;
     case 'formulario': renderFormulario(estado); break;
     case 'factura': renderFactura(); break;
+    case 'inventario': renderInventario(); break;
   }
   if (!sinScroll) window.scrollTo(0, 0);
 }
@@ -1651,6 +1653,519 @@ async function cancelarFactura() {
   }
 }
 
+/* ---------------- Inventario (administradores y trabajadores) ---------------- */
+// La hoja se guarda en el teléfono después de cada cambio: si se cierra la app
+// o se apaga el teléfono, sigue donde quedó.
+const CLAVE_INVENTARIO = 'abarroterias_vc_inventario';
+const NOMBRE_NEGOCIO = 'ABARROTERÍAS VC';
+const FILAS_POR_PAGINA = 35; // filas por imagen al enviar
+
+let inventario = null; // { inicio, quien, lineas: [{ productoId, codigo, nombre, costo, cantidad, manual }] }
+
+function cargarInventario() {
+  try {
+    const d = JSON.parse(localStorage.getItem(CLAVE_INVENTARIO) || 'null');
+    if (d && Array.isArray(d.lineas)) inventario = d;
+  } catch (_) { /* sin inventario guardado */ }
+}
+
+function guardarInventario() {
+  try {
+    if (inventario) localStorage.setItem(CLAVE_INVENTARIO, JSON.stringify(inventario));
+    else localStorage.removeItem(CLAVE_INVENTARIO);
+  } catch (e) {
+    console.error(e);
+    alerta('No se pudo guardar', 'El teléfono no tiene espacio para guardar la hoja de inventario.');
+  }
+}
+
+const redondear2 = (n) => Math.round(n * 100) / 100;
+const totalDeLinea = (l) => redondear2(l.cantidad * l.costo);
+const totalInventario = () => redondear2(inventario.lineas.reduce((s, l) => s + totalDeLinea(l), 0));
+const unidadesInventario = () => Math.round(inventario.lineas.reduce((s, l) => s + l.cantidad, 0) * 1000) / 1000;
+const textoCantidad = (n) => (Number.isInteger(n) ? String(n) : String(Math.round(n * 1000) / 1000));
+
+/** Cantidad contada: entero o con decimales (ej. 2.5 libras). null si está vacío, NaN si no es válida. */
+function leerCantidad(texto) {
+  const t = String(texto ?? '').trim().replace(',', '.');
+  if (t === '') return null;
+  if (!/^\d+(\.\d{1,3})?$/.test(t)) return NaN;
+  return parseFloat(t);
+}
+
+function fechaInventario() {
+  const f = new Date(inventario.inicio);
+  return f.toLocaleDateString('es-GT', { day: 'numeric', month: 'long', year: 'numeric' }) + ' · ' +
+    f.toLocaleTimeString('es-GT', { hour: 'numeric', minute: '2-digit' });
+}
+
+function renderInventario(resaltar = -1) {
+  const v = $('#vista-inventario');
+  if (!inventario) {
+    v.innerHTML = `
+      <div class="tarjeta inv-inicio">
+        ${ico('inventario', 'inv-icono-grande')}
+        <h2>Hacer inventario</h2>
+        <p class="texto-suave">Escanee o busque cada producto, escriba cuántos hay y la app suma el total
+          con el precio de costo. Al terminar lo envía por WhatsApp.</p>
+        <button class="btn btn-primario btn-bloque btn-grande" data-inv="nuevo">${ico('mas')}Nuevo inventario</button>
+      </div>`;
+    return;
+  }
+  const filas = inventario.lineas.map((l, i) => `
+    <div class="hoja-fila ${i === resaltar ? 'resaltada' : ''}" data-inv="editar" data-i="${i}">
+      <div class="hoja-producto">
+        <span class="hoja-nombre">${esc(l.nombre)}${l.manual ? ' <span class="hoja-marca">no registrado</span>' : ''}</span>
+        <small>${textoCantidad(l.cantidad)} × ${q(l.costo)}</small>
+      </div>
+      <div class="hoja-monto">${q(totalDeLinea(l))}</div>
+    </div>`).join('');
+  v.innerHTML = `
+    <div class="botones-fila">
+      <button class="btn btn-primario btn-grande" data-inv="escanear">${ico('escanear')}Escanear</button>
+      <button class="btn btn-secundario btn-grande" data-inv="buscar">${ico('buscar')}Buscar</button>
+    </div>
+    <div class="hoja">
+      <div class="hoja-encabezado">
+        <div class="hoja-negocio">${esc(NOMBRE_NEGOCIO)}</div>
+        <div class="hoja-sub">Inventario · ${esc(fechaInventario())}</div>
+        <div class="hoja-sub">Contó: ${esc(inventario.quien || '')}</div>
+      </div>
+      <div class="hoja-columnas"><span>Producto · cantidad × costo</span><span>Total</span></div>
+      ${filas || '<p class="hoja-vacia">Escanee o busque un producto para empezar.</p>'}
+      <div class="hoja-total"><span>TOTAL</span><strong>${q(totalInventario())}</strong></div>
+      <p class="hoja-pie">${inventario.lineas.length} producto${inventario.lineas.length === 1 ? '' : 's'} · ${textoCantidad(unidadesInventario())} unidades
+        ${inventario.lineas.length ? '<br>Toque un producto para corregir la cantidad o quitarlo.' : ''}</p>
+    </div>
+    <button class="btn btn-primario btn-bloque btn-grande" data-inv="enviar">${ico('compartir')}Enviar por WhatsApp</button>
+    <button class="btn btn-contorno btn-bloque" data-inv="terminar">${ico('eliminar')}Terminar y borrar hoja</button>`;
+  if (resaltar >= 0) {
+    const fila = v.querySelector(`.hoja-fila[data-i="${resaltar}"]`);
+    if (fila) fila.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+function alTocarInventario(e) {
+  const el = e.target.closest('[data-inv]');
+  if (!el) return;
+  const accion = el.dataset.inv;
+  if (accion === 'nuevo') nuevoInventario();
+  else if (accion === 'escanear') escanearParaInventario();
+  else if (accion === 'buscar') buscarParaInventario();
+  else if (accion === 'editar') editarLineaInventario(Number(el.dataset.i));
+  else if (accion === 'enviar') enviarInventario();
+  else if (accion === 'terminar') terminarInventario();
+}
+
+function nuevoInventario() {
+  inventario = { inicio: new Date().toISOString(), quien: sesion.nombre, lineas: [] };
+  guardarInventario();
+  renderInventario();
+}
+
+/** Suma a la hoja. Si el producto ya estaba (está en dos lados de la tienda), suma la cantidad. */
+function agregarAlInventario(datosLinea, cantidad) {
+  let i = datosLinea.productoId ? inventario.lineas.findIndex((l) => l.productoId === datosLinea.productoId) : -1;
+  if (i >= 0) {
+    const l = inventario.lineas[i];
+    l.cantidad = Math.round((l.cantidad + cantidad) * 1000) / 1000;
+    aviso(`Ya estaba: ahora son ${textoCantidad(l.cantidad)}`);
+  } else {
+    inventario.lineas.push({ ...datosLinea, cantidad });
+    i = inventario.lineas.length - 1;
+    aviso(`Agregado: ${textoCantidad(cantidad)} × ${datosLinea.nombre}`);
+  }
+  guardarInventario();
+  renderInventario(i);
+}
+
+/** Al pulsar Enter en un campo, toca el botón principal de la ventana. */
+function enterEnviaModal() {
+  $$('#modal-cuerpo .input').forEach((input) => input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); $$('#modal-botones .btn-primario').pop()?.click(); }
+  }));
+}
+
+/** Muestra el precio de costo y pide la cantidad. */
+async function contarProducto(p) {
+  const yaContado = inventario.lineas.find((l) => l.productoId === p.id);
+  const sinCosto = typeof p.precioCosto !== 'number' && !yaContado;
+  const r = await modal({
+    titulo: p.nombre,
+    html: `
+      ${sinCosto ? `
+        <p class="texto-suave">Este producto no tiene precio de costo.</p>
+        <label class="etiqueta" for="inv-costo">Precio de costo</label>
+        <div class="input-moneda"><span>Q</span><input id="inv-costo" class="input" type="text" inputmode="decimal" placeholder="0.00"></div>
+        ${esAdmin() ? '<label class="fila-check inv-check"><input type="checkbox" id="inv-guardar-costo" checked><span>Guardar este costo en el producto</span></label>' : ''}`
+      : `<div class="inv-costo-grande">${q(yaContado ? yaContado.costo : p.precioCosto)}</div>
+         <p class="texto-suave centrado">precio de costo</p>`}
+      ${yaContado ? `<p class="inv-ya-contado">Ya contó <strong>${textoCantidad(yaContado.cantidad)}</strong>. Lo que escriba se sumará.</p>` : ''}
+      <label class="etiqueta" for="inv-cantidad">¿Cuántos hay?</label>
+      <input id="inv-cantidad" class="input input-cantidad" type="text" inputmode="decimal" placeholder="0" autocomplete="off">
+      <p id="inv-error" class="error" role="alert"></p>`,
+    botones: [
+      { texto: 'Cancelar', clase: 'btn-secundario', valor: null },
+      {
+        texto: 'Agregar',
+        clase: 'btn-primario',
+        accion: () => {
+          const error = (m) => { $('#inv-error').textContent = m; return MANTENER_ABIERTA; };
+          let costo = yaContado ? yaContado.costo : p.precioCosto;
+          if (sinCosto) {
+            costo = leerPrecio($('#inv-costo').value);
+            if (costo === null || Number.isNaN(costo)) return error('Escriba el precio de costo. Ejemplo: 7.50');
+          }
+          const cantidad = leerCantidad($('#inv-cantidad').value);
+          if (cantidad === null) return error('Escriba cuántos hay.');
+          if (Number.isNaN(cantidad)) return error('La cantidad no es válida. Ejemplo: 12 o 2.5');
+          return { costo, cantidad, guardarCosto: sinCosto && esAdmin() && $('#inv-guardar-costo')?.checked };
+        },
+      },
+    ],
+    alAbrir: () => { enterEnviaModal(); ($(sinCosto ? '#inv-costo' : '#inv-cantidad')).focus(); },
+  });
+  if (!r) return;
+  if (r.guardarCosto) {
+    const cambios = { precioCosto: r.costo, actualizado: new Date().toISOString(), actualizadoPor: sesion.nombre };
+    ponerLocal(datos.productos, { id: p.id, ...cambios });
+    enNube(fb.updateDoc(refDoc('productos', p.id), cambios));
+  }
+  agregarAlInventario({ productoId: p.id, codigo: p.codigo || '', nombre: p.nombre, costo: r.costo, manual: false }, r.cantidad);
+}
+
+/**
+ * Producto que no está en la lista:
+ * - administrador: lo registra en la lista de productos y lo cuenta;
+ * - trabajador: lo agrega a la hoja marcado "no registrado" (el administrador lo registra después).
+ */
+async function productoNuevoEnInventario(codigo = '') {
+  const admin = esAdmin();
+  const r = await modal({
+    titulo: admin ? 'Registrar producto' : 'Producto no registrado',
+    html: `
+      ${codigo ? `<p class="texto-suave">Código: <strong>${esc(codigo)}</strong></p>` : ''}
+      <p class="texto-suave">${admin
+        ? 'Este producto no está en la lista. Regístrelo y se agrega a la hoja.'
+        : 'Este producto no está en la lista. Agréguelo a la hoja; el administrador lo registrará después.'}</p>
+      <label class="etiqueta" for="inv-n-nombre">Nombre del producto</label>
+      <input id="inv-n-nombre" class="input" type="text" maxlength="80" placeholder="Ej. Galletas María 200 g">
+      <div class="dos-columnas">
+        <div>
+          <label class="etiqueta" for="inv-n-costo">Precio de costo</label>
+          <div class="input-moneda"><span>Q</span><input id="inv-n-costo" class="input" type="text" inputmode="decimal" placeholder="0.00"></div>
+        </div>
+        ${admin ? `<div>
+          <label class="etiqueta" for="inv-n-venta">Precio de venta</label>
+          <div class="input-moneda"><span>Q</span><input id="inv-n-venta" class="input" type="text" inputmode="decimal" placeholder="Sugerido"></div>
+        </div>` : '<div></div>'}
+      </div>
+      <label class="etiqueta" for="inv-n-cantidad">¿Cuántos hay?</label>
+      <input id="inv-n-cantidad" class="input input-cantidad" type="text" inputmode="decimal" placeholder="0" autocomplete="off">
+      <p id="inv-n-error" class="error" role="alert"></p>`,
+    botones: [
+      { texto: 'Cancelar', clase: 'btn-secundario', valor: null },
+      {
+        texto: admin ? 'Registrar' : 'Agregar',
+        clase: 'btn-primario',
+        accion: () => {
+          const error = (m) => { $('#inv-n-error').textContent = m; return MANTENER_ABIERTA; };
+          const nombre = $('#inv-n-nombre').value.trim().replace(/\s+/g, ' ');
+          if (!nombre) return error('Escriba el nombre del producto.');
+          const costo = leerPrecio($('#inv-n-costo').value);
+          if (costo === null || Number.isNaN(costo)) return error('Escriba el precio de costo. Ejemplo: 7.50');
+          let venta = null;
+          if (admin) {
+            venta = leerPrecio($('#inv-n-venta').value);
+            if (Number.isNaN(venta)) return error('El precio de venta no es válido. Ejemplo: 9.50');
+            if (venta === null) venta = ventaSugerida(costo);
+          }
+          const cantidad = leerCantidad($('#inv-n-cantidad').value);
+          if (cantidad === null) return error('Escriba cuántos hay.');
+          if (Number.isNaN(cantidad)) return error('La cantidad no es válida. Ejemplo: 12 o 2.5');
+          return { nombre, costo, venta, cantidad };
+        },
+      },
+    ],
+    alAbrir: () => { enterEnviaModal(); $('#inv-n-nombre').focus(); },
+  });
+  if (!r) return;
+  if (admin) {
+    const ahora = new Date().toISOString();
+    const ref = fb.doc(refColeccion('productos'));
+    const nuevo = {
+      codigo, nombre: r.nombre, precioVenta: r.venta, precioCosto: r.costo, lugarCompra: '', categoriaId: null,
+      creado: ahora, actualizado: ahora, actualizadoPor: sesion.nombre,
+    };
+    ponerLocal(datos.productos, { id: ref.id, ...nuevo });
+    enNube(fb.setDoc(ref, nuevo));
+    agregarAlInventario({ productoId: ref.id, codigo, nombre: r.nombre, costo: r.costo, manual: false }, r.cantidad);
+  } else {
+    agregarAlInventario({ productoId: null, codigo, nombre: r.nombre, costo: r.costo, manual: true }, r.cantidad);
+  }
+}
+
+function escanearParaInventario() {
+  abrirEscaner((codigo) => {
+    const p = productoPorCodigo(codigo);
+    if (p) contarProducto(p);
+    else productoNuevoEnInventario(codigo);
+  });
+}
+
+async function buscarParaInventario() {
+  const resultados = (texto) => {
+    const t = normalizar(texto);
+    const c = limpiarCodigo(texto);
+    const lista = ordenarPorNombre(datos.productos.filter((p) => !t ||
+      normalizar(p.nombre).includes(t) || (c && (p.codigo || '').includes(c)))).slice(0, 40);
+    if (!lista.length) return '<p class="texto-suave centrado">No se encontraron productos.</p>';
+    return lista.map((p) => `
+      <button type="button" class="inv-resultado" data-id="${esc(p.id)}">
+        <span>${esc(p.nombre)}</span>
+        <span class="inv-resultado-costo">${typeof p.precioCosto === 'number' ? q(p.precioCosto) : 'sin costo'}</span>
+      </button>`).join('');
+  };
+  const elegido = await modal({
+    titulo: 'Buscar producto',
+    html: `
+      <div class="buscador">
+        ${ico('buscar', 'buscador-icono')}
+        <input id="inv-buscar" class="input" type="search" placeholder="Nombre o código" autocomplete="off">
+      </div>
+      <div id="inv-resultados" class="inv-resultados">${resultados('')}</div>
+      <button type="button" class="btn btn-contorno btn-bloque" data-nuevo>${ico('mas')}No está en la lista</button>`,
+    botones: [{ texto: 'Cerrar', clase: 'btn-secundario', valor: null }],
+    alAbrir: (cerrar) => {
+      const input = $('#inv-buscar');
+      input.addEventListener('input', () => { $('#inv-resultados').innerHTML = resultados(input.value); });
+      $('#inv-resultados').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-id]');
+        if (b) cerrar(b.dataset.id);
+      });
+      $('#modal-cuerpo [data-nuevo]').addEventListener('click', () => cerrar('__nuevo'));
+      input.focus();
+    },
+  });
+  if (!elegido) return;
+  if (elegido === '__nuevo') productoNuevoEnInventario('');
+  else {
+    const p = productoPorId(elegido);
+    if (p) contarProducto(p);
+  }
+}
+
+async function editarLineaInventario(i) {
+  const l = inventario.lineas[i];
+  if (!l) return;
+  const r = await modal({
+    titulo: l.nombre,
+    html: `
+      ${l.manual ? `
+        <label class="etiqueta" for="inv-e-nombre">Nombre</label>
+        <input id="inv-e-nombre" class="input" type="text" maxlength="80" value="${esc(l.nombre)}">
+        <label class="etiqueta" for="inv-e-costo">Precio de costo</label>
+        <div class="input-moneda"><span>Q</span><input id="inv-e-costo" class="input" type="text" inputmode="decimal" value="${esc(precioTexto(l.costo))}"></div>`
+      : `<p class="texto-suave">Precio de costo: <strong>${q(l.costo)}</strong></p>`}
+      <label class="etiqueta" for="inv-e-cantidad">Cantidad</label>
+      <input id="inv-e-cantidad" class="input input-cantidad" type="text" inputmode="decimal" value="${esc(textoCantidad(l.cantidad))}" autocomplete="off">
+      <p id="inv-e-error" class="error" role="alert"></p>`,
+    botones: [
+      { texto: 'Cancelar', clase: 'btn-secundario', valor: null },
+      {
+        texto: 'Guardar',
+        clase: 'btn-primario',
+        accion: () => {
+          const error = (m) => { $('#inv-e-error').textContent = m; return MANTENER_ABIERTA; };
+          const cantidad = leerCantidad($('#inv-e-cantidad').value);
+          if (cantidad === null || Number.isNaN(cantidad)) return error('Escriba una cantidad válida. Ejemplo: 12 o 2.5');
+          const cambios = { cantidad };
+          if (l.manual) {
+            const nombre = $('#inv-e-nombre').value.trim().replace(/\s+/g, ' ');
+            const costo = leerPrecio($('#inv-e-costo').value);
+            if (!nombre) return error('Escriba el nombre.');
+            if (costo === null || Number.isNaN(costo)) return error('Escriba el precio de costo. Ejemplo: 7.50');
+            Object.assign(cambios, { nombre, costo });
+          }
+          return { accion: 'guardar', cambios };
+        },
+      },
+      { texto: 'Quitar de la hoja', clase: 'btn-peligro', valor: { accion: 'quitar' } },
+    ],
+    alAbrir: () => { enterEnviaModal(); $('#inv-e-cantidad').select(); },
+  });
+  if (!r) return;
+  if (r.accion === 'guardar') {
+    Object.assign(l, r.cambios);
+    guardarInventario();
+    aviso('Corregido');
+    renderInventario(i);
+  } else if (r.accion === 'quitar' && await confirmar('Quitar producto', `¿Quitar "${l.nombre}" de la hoja?`, 'Quitar', true)) {
+    inventario.lineas.splice(i, 1);
+    guardarInventario();
+    aviso('Quitado de la hoja');
+    renderInventario();
+  }
+}
+
+async function terminarInventario() {
+  const ok = await confirmar('Terminar inventario',
+    inventario.lineas.length
+      ? 'Se borrará la hoja de este teléfono. ¿Ya la envió por WhatsApp?'
+      : '¿Borrar esta hoja de inventario?',
+    'Sí, borrar', true);
+  if (!ok) return;
+  inventario = null;
+  guardarInventario();
+  renderInventario();
+}
+
+/** Dibuja la hoja (una página) como imagen blanca, lista para WhatsApp. */
+function dibujarPaginaInventario(lineas, inicio, pagina, totalPaginas) {
+  const W = 1080;
+  const M = 60;
+  const FILA = 64;
+  const ENCABEZADO = 250;
+  const PIE = pagina === totalPaginas ? 230 : 120;
+  const H = ENCABEZADO + 80 + Math.max(lineas.length, 1) * FILA + PIE;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const c = canvas.getContext('2d');
+  const fuente = (peso, tam) => `${peso} ${tam}px -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
+  const cortar = (texto, ancho) => {
+    if (c.measureText(texto).width <= ancho) return texto;
+    while (texto.length > 1 && c.measureText(texto + '…').width > ancho) texto = texto.slice(0, -1);
+    return texto + '…';
+  };
+  const dinero = (n) => 'Q ' + formatoQ.format(n);
+
+  c.fillStyle = '#ffffff';
+  c.fillRect(0, 0, W, H);
+  // Encabezado
+  c.fillStyle = '#1d4fd8';
+  c.fillRect(0, 0, W, 14);
+  c.fillStyle = '#0b1530';
+  c.textAlign = 'center';
+  c.font = fuente(800, 54);
+  c.fillText(NOMBRE_NEGOCIO, W / 2, 100);
+  c.font = fuente(600, 32);
+  c.fillStyle = '#334';
+  c.fillText(`Inventario · ${fechaInventario()}`, W / 2, 152);
+  c.font = fuente(400, 28);
+  c.fillStyle = '#556';
+  c.fillText(`Contó: ${inventario.quien || ''}${totalPaginas > 1 ? `   ·   Página ${pagina} de ${totalPaginas}` : ''}`, W / 2, 198);
+
+  // Encabezados de columnas
+  let y = ENCABEZADO;
+  c.fillStyle = '#eef2fb';
+  c.fillRect(M - 16, y, W - 2 * (M - 16), 64);
+  c.fillStyle = '#223';
+  c.font = fuente(700, 28);
+  c.textAlign = 'left';
+  c.fillText('Producto', M, y + 42);
+  c.textAlign = 'right';
+  c.fillText('Cant.', 650, y + 42);
+  c.fillText('Costo', 830, y + 42);
+  c.fillText('Total', W - M, y + 42);
+  y += 80;
+
+  // Filas
+  lineas.forEach((l, k) => {
+    if (k % 2 === 1) { c.fillStyle = '#f6f7fb'; c.fillRect(M - 16, y - 6, W - 2 * (M - 16), FILA); }
+    c.fillStyle = '#111';
+    c.font = fuente(500, 30);
+    c.textAlign = 'left';
+    c.fillText(cortar(`${inicio + k + 1}. ${l.nombre}${l.manual ? ' *' : ''}`, 650 - M - 110), M, y + 38);
+    c.textAlign = 'right';
+    c.fillText(textoCantidad(l.cantidad), 650, y + 38);
+    c.fillStyle = '#444';
+    c.fillText(dinero(l.costo), 830, y + 38);
+    c.fillStyle = '#111';
+    c.font = fuente(700, 30);
+    c.fillText(dinero(totalDeLinea(l)), W - M, y + 38);
+    y += FILA;
+  });
+
+  // Pie
+  y += 20;
+  c.strokeStyle = '#0b1530';
+  c.lineWidth = 4;
+  c.beginPath(); c.moveTo(M - 16, y); c.lineTo(W - M + 16, y); c.stroke();
+  if (pagina === totalPaginas) {
+    c.textAlign = 'left';
+    c.fillStyle = '#334';
+    c.font = fuente(500, 28);
+    c.fillText(`${inventario.lineas.length} productos · ${textoCantidad(unidadesInventario())} unidades`, M, y + 60);
+    if (inventario.lineas.some((l) => l.manual)) {
+      c.font = fuente(400, 24);
+      c.fillStyle = '#b4232f';
+      c.fillText('* Producto no registrado en la app', M, y + 100);
+    }
+    c.textAlign = 'right';
+    c.fillStyle = '#0b1530';
+    c.font = fuente(700, 34);
+    c.fillText('TOTAL', W - M, y + 58);
+    c.font = fuente(800, 64);
+    c.fillStyle = '#1d4fd8';
+    c.fillText(dinero(totalInventario()), W - M, y + 140);
+  } else {
+    c.textAlign = 'center';
+    c.fillStyle = '#556';
+    c.font = fuente(500, 28);
+    c.fillText('Continúa en la página siguiente…', W / 2, y + 64);
+  }
+  return canvas;
+}
+
+/** Convierte la imagen en archivo sin esperas (el iPhone pide compartir justo después del toque). */
+function canvasAArchivo(canvas, nombre) {
+  const datosUrl = canvas.toDataURL('image/png');
+  const binario = atob(datosUrl.split(',')[1]);
+  const bytes = new Uint8Array(binario.length);
+  for (let k = 0; k < binario.length; k++) bytes[k] = binario.charCodeAt(k);
+  return new File([bytes], nombre, { type: 'image/png' });
+}
+
+async function enviarInventario() {
+  if (!inventario.lineas.length) {
+    alerta('Hoja vacía', 'Agregue al menos un producto antes de enviar.');
+    return;
+  }
+  const paginas = Math.ceil(inventario.lineas.length / FILAS_POR_PAGINA);
+  const fecha = new Date(inventario.inicio).toISOString().slice(0, 10);
+  const archivos = [];
+  for (let pg = 1; pg <= paginas; pg++) {
+    const inicio = (pg - 1) * FILAS_POR_PAGINA;
+    const canvas = dibujarPaginaInventario(inventario.lineas.slice(inicio, inicio + FILAS_POR_PAGINA), inicio, pg, paginas);
+    archivos.push(canvasAArchivo(canvas, `inventario-${fecha}${paginas > 1 ? `-pagina-${pg}` : ''}.png`));
+  }
+  const texto = `Inventario ${NOMBRE_NEGOCIO} · Total: ${q(totalInventario())}`;
+  if (navigator.canShare && navigator.canShare({ files: archivos })) {
+    try {
+      await navigator.share({ files: archivos, title: texto });
+      return;
+    } catch (e) {
+      if (e && e.name === 'AbortError') return; // cerró el menú sin enviar
+      console.warn('No se pudo compartir', e);
+    }
+  }
+  // Si el teléfono no puede compartir imágenes: se descargan
+  archivos.forEach((archivo) => {
+    const url = URL.createObjectURL(archivo);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = archivo.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  });
+  aviso('Imagen descargada: envíela por WhatsApp');
+}
+
+cargarInventario();
+
 /* ---------------- Respaldo ---------------- */
 async function exportarRespaldo() {
   const contenido = JSON.stringify({
@@ -1804,6 +2319,7 @@ function conectarEventos() {
   });
   $('#btn-llave-ia').addEventListener('click', configurarLlave);
   $('#f-vincular-btn').addEventListener('click', vincularCodigo);
+  $('#vista-inventario').addEventListener('click', alTocarInventario);
   $('#vista-factura').addEventListener('input', alCambiarFactura);
   $('#vista-factura').addEventListener('change', alCambiarFactura);
   $('#vista-factura').addEventListener('click', (e) => {

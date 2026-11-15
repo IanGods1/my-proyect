@@ -80,6 +80,23 @@ Cada persona puede cambiar su propia contraseña en ⚙️ **Ajustes → Cambiar
   aparecen mientras escribe) y **filtro por categoría**.
 - Administradores: ✏️ editar, 🗑️ eliminar y botón **＋** para agregar.
 
+### 📋 Inventario (administradores y trabajadores)
+Para contar la mercadería y saber cuánto dinero hay en la tienda (a precio de costo).
+1. Pestaña **Inventario → Nuevo inventario**: aparece una hoja con el nombre del negocio, la fecha y quién cuenta.
+2. Toque **Escanear** o **Buscar** (por nombre o código). Sale **solo el precio de costo**.
+3. Escriba **cuántos hay** (acepta decimales, por ejemplo 2.5 libras) y toque **Agregar**.
+   La línea (cantidad × costo) se suma a la hoja y el **TOTAL** se actualiza solo.
+   - Si el mismo producto está en dos lados de la tienda, al contarlo otra vez **se suma** en la misma línea.
+   - Toque una línea para **corregir** la cantidad o **quitarla**.
+   - **Producto sin costo:** se escribe el costo ahí mismo (un administrador puede guardarlo en el producto).
+   - **Producto que no está en la lista:** un administrador lo **registra** ahí mismo; un trabajador lo agrega a
+     la hoja marcado **"no registrado"** para que el administrador lo registre después.
+4. **Enviar por WhatsApp:** se crea una **imagen** de la hoja (varias páginas si es muy larga); elija WhatsApp y el contacto.
+5. **Terminar y borrar hoja** cuando ya la envió.
+
+La hoja se guarda **en el teléfono** después de cada cambio: si se cierra la app o se apaga el teléfono,
+sigue donde quedó. No se guardan inventarios anteriores.
+
 ### 🏷️ Categorías (solo administradores)
 Crear, cambiar nombre y eliminar. Al eliminar una categoría, sus productos quedan como "Sin categoría".
 

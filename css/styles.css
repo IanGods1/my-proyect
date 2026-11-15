@@ -634,3 +634,60 @@ body.sin-sesion { padding-bottom: 0; }
 .banda { background: rgba(255, 204, 77, 0.12); border: 1px solid rgba(255, 204, 77, 0.45); -webkit-backdrop-filter: var(--desenfoque); backdrop-filter: var(--desenfoque); }
 .nota { background: rgba(255, 255, 255, 0.06); border: 1px solid var(--vidrio-borde); }
 .detalle-precio { text-shadow: 0 0 24px rgba(46, 204, 113, 0.35); }
+
+/* ============================================================
+   Inventario: hoja blanca
+   ============================================================ */
+.inv-inicio { text-align: center; align-items: center; padding: 26px 18px; }
+.inv-inicio h2 { margin: 6px 0 0; font-size: 1.4rem; }
+.inv-icono-grande { width: 64px; height: 64px; color: var(--azul-claro); stroke-width: 1.6; }
+
+.hoja {
+  background: #ffffff;
+  color: #111;
+  border-radius: 16px;
+  padding: 18px 16px 14px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.4);
+}
+.hoja-encabezado { text-align: center; border-top: 6px solid #1d4fd8; margin: -18px -16px 12px; padding: 16px 16px 12px; border-radius: 16px 16px 0 0; }
+.hoja-negocio { font-size: 1.45rem; font-weight: 900; letter-spacing: 0.5px; color: #0b1530; }
+.hoja-sub { font-size: 0.88rem; color: #556; margin-top: 2px; }
+.hoja-columnas { display: flex; justify-content: space-between; font-size: 0.78rem; font-weight: 800; color: #667;
+  text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 2px solid #0b1530; padding: 6px 2px; }
+.hoja-fila { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 2px;
+  border-bottom: 1px solid #e3e7f0; cursor: pointer; border-radius: 8px; transition: background 0.3s; }
+.hoja-fila:active { background: #eef2fb; }
+.hoja-fila.resaltada { animation: resaltar 1.6s ease-out; }
+@keyframes resaltar { 0% { background: #fff3b0; } 100% { background: transparent; } }
+.hoja-producto { display: flex; flex-direction: column; min-width: 0; }
+.hoja-nombre { font-weight: 700; font-size: 1.02rem; overflow-wrap: anywhere; }
+.hoja-producto small { color: #667; font-size: 0.88rem; }
+.hoja-marca { display: inline-block; font-size: 0.7rem; font-weight: 800; color: #b4232f; background: #fde8ea;
+  border-radius: 999px; padding: 1px 7px; vertical-align: 2px; }
+.hoja-monto { font-weight: 800; white-space: nowrap; font-size: 1.05rem; }
+.hoja-vacia { text-align: center; color: #889; padding: 26px 8px; margin: 0; }
+.hoja-total { display: flex; justify-content: space-between; align-items: baseline; border-top: 3px solid #0b1530;
+  margin-top: 8px; padding-top: 12px; font-weight: 900; color: #0b1530; }
+.hoja-total span { font-size: 1.05rem; letter-spacing: 1px; }
+.hoja-total strong { font-size: 1.7rem; color: #1d4fd8; }
+.hoja-pie { margin: 8px 0 0; color: #778; font-size: 0.85rem; }
+
+/* Ventanas del inventario */
+.modal-caja { max-height: calc(100dvh - 36px); overflow-y: auto; }
+.inv-costo-grande { text-align: center; font-size: 2.6rem; font-weight: 900; color: var(--verde);
+  text-shadow: 0 0 24px rgba(46, 204, 113, 0.35); margin-top: 4px; }
+.modal-caja .inv-costo-grande + .centrado { margin: -4px 0 6px; }
+.input-cantidad { font-size: 2rem; font-weight: 800; text-align: center; min-height: 64px; }
+.inv-ya-contado { background: rgba(255, 204, 77, 0.12); border: 1px solid rgba(255, 204, 77, 0.4); color: var(--amarillo);
+  border-radius: 12px; padding: 8px 12px; margin: 8px 0 0 !important; }
+.inv-check { margin-top: 10px; font-size: 0.95rem; }
+.inv-resultados { max-height: 46vh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.inv-resultado { display: flex; justify-content: space-between; align-items: center; gap: 10px; text-align: left;
+  min-height: 52px; padding: 10px 12px; border-radius: 12px; font: inherit; font-size: 1rem; font-weight: 700;
+  color: var(--texto); background: rgba(255, 255, 255, 0.07); border: 1px solid var(--vidrio-borde); }
+.inv-resultado:active { background: rgba(111, 155, 255, 0.25); }
+.inv-resultado-costo { color: var(--verde); white-space: nowrap; }
+.modal-caja .buscador .input { padding-left: 46px; }
+
+/* Barra de abajo con 5 pestañas: letra un poco más pequeña */
+.nav-btn { font-size: 0.74rem; }
