@@ -475,6 +475,8 @@ function modal({ titulo, html = '', botones, alAbrir }) {
       });
       cont.appendChild(btn);
     });
+    // Si hay casillas para escribir, la ventana va arriba (el teclado del teléfono no la tapa)
+    caja.classList.toggle('con-teclado', !!$('#modal-cuerpo').querySelector('input:not([type=checkbox]), textarea'));
     caja.classList.remove('oculto');
     if (alAbrir) alAbrir(cerrar);
   });
@@ -2035,7 +2037,7 @@ async function editarLineaInventario(i) {
           return { accion: 'guardar', cambios };
         },
       },
-      { texto: 'Quitar de la hoja', clase: 'btn-peligro', valor: { accion: 'quitar' } },
+      { texto: 'Quitar de la hoja', clase: 'btn-quitar', valor: { accion: 'quitar' } },
     ],
     alAbrir: () => { enterEnviaModal(); $('#inv-e-cantidad').select(); },
   });
@@ -2543,6 +2545,18 @@ function conectarEventos() {
     e.target.value = '';
     if (archivo) importarRespaldo(archivo);
   });
+
+  // Espacio que deja libre el teclado del teléfono (para que las ventanas no queden tapadas)
+  if (window.visualViewport) {
+    const ajustarAlTeclado = () => {
+      const vv = window.visualViewport;
+      document.documentElement.style.setProperty('--alto-visible', `${Math.round(vv.height)}px`);
+      document.documentElement.style.setProperty('--arriba-visible', `${Math.round(vv.offsetTop)}px`);
+    };
+    window.visualViewport.addEventListener('resize', ajustarAlTeclado);
+    window.visualViewport.addEventListener('scroll', ajustarAlTeclado);
+    ajustarAlTeclado();
+  }
 
   // Aviso de sin internet
   const actualizarConexion = () => {
