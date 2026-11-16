@@ -44,6 +44,18 @@ Dele **Merge** al *pull request* en GitHub. En 1 o 2 minutos la app se actualiza
 
 ---
 
+## 📍 Sucursales (Guastatoya, Nebaj…)
+Cada sucursal tiene **su propia lista** de productos, precios de costo, precios de venta, proveedores y categorías.
+- **Administradores:** arriba a la derecha ven la sucursal (📍 Guastatoya ▾). Al tocarla se cambian a otra.
+  También en ⚙️ **Ajustes → Sucursales**, donde además pueden **agregar sucursales** (empiezan sin productos y
+  con las mismas categorías de la sucursal actual). La app recuerda la última sucursal elegida en ese teléfono.
+- **Trabajadores:** pertenecen a **una sola sucursal** y solo ven sus productos y precios (no ven ni cambian la
+  sucursal). Al crear un trabajador se elige su sucursal; se cambia en Ajustes → Usuarios → Cambiar sucursal.
+- **Inventario:** usa los costos de la sucursal y sugiere el nombre "Abarroterías VC + sucursal". Si la hoja se
+  empezó en otra sucursal, la app avisa y ofrece volver a esa sucursal.
+- **La primera vez** que un administrador abre esta versión, la app pasa los productos que ya existían a
+  **Guastatoya**, crea **Nebaj** sin productos y copia las categorías a las dos. Los datos de antes no se borran.
+
 ## 👥 Usuarios
 
 ### Entrar
@@ -183,10 +195,13 @@ fonts/                 Letra de ticket Share Tech Mono (licencia OFL en fonts/SH
 ```
 
 **Modelo de datos (Firestore)**
-- `usuarios/{uid}`: `nombre`, `usuario`, `rol` (`admin`/`trabajador`), `activo`.
+- `usuarios/{uid}`: `nombre`, `usuario`, `rol` (`admin`/`trabajador`), `activo`, `sucursalId` (trabajadores).
 - `acceso/{usuario}`: correo interno con el que se inicia sesión (`usuario@sanvicenta.app`).
 - `config/inicial`: existe cuando ya se creó el administrador principal.
-- `productos/{id}` y `categorias/{id}`.
+- `sucursales/{sucursal}` (`nombre`, `orden`) con sus subcolecciones `productos/{id}` y `categorias/{id}`.
+  Las reglas solo dejan leer una sucursal a sus trabajadores y a los administradores.
+- `config/sucursales`: existe cuando ya se pasaron los datos de antes a Guastatoya.
+- `productos/{id}` y `categorias/{id}` (en la raíz): datos de antes de las sucursales, guardados como respaldo.
 
 **Contraseñas en el plan gratis**: el cliente no puede cambiar la contraseña de otra cuenta.
 Para "cambiar la contraseña" de alguien se crea una cuenta nueva con el mismo usuario,

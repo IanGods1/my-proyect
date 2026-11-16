@@ -53,8 +53,15 @@ function obtenerAuthSecundaria() {
   return authSecundaria;
 }
 
-const refDoc = (...ruta) => fb.doc(db, ...ruta);
-const refColeccion = (nombre) => fb.collection(db, nombre);
+/* Sucursales: cada una tiene su propia lista de productos y categorías en
+   sucursales/{sucursal}/productos y sucursales/{sucursal}/categorias */
+const SUCURSALES_INICIALES = [{ id: 'guastatoya', nombre: 'Guastatoya', orden: 1 }, { id: 'nebaj', nombre: 'Nebaj', orden: 2 }];
+const CLAVE_SUCURSAL = 'abarroterias_vc_sucursal'; // última sucursal elegida por un administrador en este teléfono
+let sucursalActual = 'guastatoya';
+const RUTAS_DE_SUCURSAL = ['productos', 'categorias'];
+const enSucursal = (ruta) => (RUTAS_DE_SUCURSAL.includes(ruta[0]) ? ['sucursales', sucursalActual, ...ruta] : ruta);
+const refDoc = (...ruta) => fb.doc(db, ...enSucursal(ruta));
+const refColeccion = (nombre) => fb.collection(db, ...enSucursal([nombre]));
 
 /* ---------------- Utilidades ---------------- */
 const $ = (sel) => document.querySelector(sel);
@@ -141,7 +148,7 @@ const CATEGORIAS_INICIALES = ['Bebidas', 'Lácteos', 'Snacks', 'Limpieza', 'Gran
 const CLAVE_DATOS_ANTERIORES = 'abarroterias_san_vicenta_v1'; // versión sin nube (solo en el teléfono)
 const CLAVE_MIGRADO = 'abarroterias_san_vicenta_migrado';
 
-const datos = { categorias: [], productos: [], usuarios: [] };
+const datos = { categorias: [], productos: [], usuarios: [], sucursales: [] };
 const cargado = { productos: false, categorias: false };
 
 const categoriaPorId = (id) => datos.categorias.find((c) => c.id === id);
@@ -231,9 +238,16 @@ fb.onAuthStateChanged(auth, (usuario) => {
     }
     rolElegido = null;
     const rolAnterior = sesion?.rol;
-    sesion = { uid: usuario.uid, email: usuario.email, nombre: u.nombre, usuario: u.usuario, rol: u.rol };
+    const sucursalAnterior = sesion?.sucursalId;
+    sesion = { uid: usuario.uid, email: usuario.email, nombre: u.nombre, usuario: u.usuario, rol: u.rol, sucursalId: u.sucursalId || 'guastatoya' };
+    // Trabajadores: siempre en su sucursal. Administradores: la última que eligieron en este teléfono.
+    if (sesion.rol !== 'admin') sucursalActual = sesion.sucursalId;
+    else if (!appIniciada || rolAnterior !== 'admin') {
+      try { sucursalActual = localStorage.getItem(CLAVE_SUCURSAL) || 'guastatoya'; } catch (_) { sucursalActual = 'guastatoya'; }
+    }
     if (!appIniciada) iniciarSesionEnApp();
     else if (rolAnterior !== sesion.rol) { aviso('Su tipo de usuario cambió'); reiniciarApp(); }
+    else if (sesion.rol !== 'admin' && sucursalAnterior !== sesion.sucursalId) { aviso('Le cambiaron de sucursal'); reiniciarApp(); }
     else actualizarChipUsuario();
   }, (error) => {
     console.error(error);
@@ -249,7 +263,11 @@ async function cerrarSesion(pendiente = null) {
 
 function actualizarChipUsuario() {
   if (!sesion) return;
-  $('#chip-usuario').innerHTML = ico(esAdmin() ? 'corona' : 'usuario') + esc(String(sesion.nombre).split(' ')[0]);
+  // Administradores: la sucursal (se toca para cambiarla). Trabajadores: su nombre (no ven la sucursal).
+  $('#chip-usuario').innerHTML = esAdmin()
+    ? ico('ubicacion') + esc(nombreSucursal()) + ico('abajo', 'chip-flecha')
+    : ico('usuario') + esc(String(sesion.nombre).split(' ')[0]);
+  $('#chip-usuario').classList.toggle('chip-sucursal', esAdmin());
   document.body.classList.toggle('rol-admin', esAdmin());
   document.body.classList.toggle('rol-trabajador', !esAdmin());
 }
@@ -263,7 +281,7 @@ function iniciarSesionEnApp() {
   suscribirDatos();
   history.replaceState({ vista: 'escanear' }, '');
   mostrar({ vista: 'escanear' });
-  if (esAdmin()) setTimeout(ofrecerMigracion, 1500);
+  if (esAdmin()) prepararSucursales().then(() => setTimeout(ofrecerMigracion, 1500));
 }
 
 function reiniciarApp() {
@@ -284,6 +302,11 @@ function suscribirDatos() {
   escuchar('categorias', (snap) => {
     datos.categorias = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     cargado.categorias = true;
+  });
+  escuchar('sucursales', (snap) => {
+    datos.sucursales = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (a.orden ?? 99) - (b.orden ?? 99) || String(a.nombre).localeCompare(String(b.nombre), 'es'));
+    actualizarChipUsuario();
   });
   if (esAdmin()) {
     escuchar('usuarios', (snap) => {
@@ -322,6 +345,116 @@ function refrescarVista() {
   if (estado.vista === 'formulario') { llenarSelectCategorias($('#f-categoria').value); return; }
   if (estado.vista === 'factura') return; // no borrar lo que está revisando
   mostrar(estado, { sinScroll: true });
+}
+
+/* ---------------- Sucursales ---------------- */
+function nombreSucursal(id = sucursalActual) {
+  const s = datos.sucursales.find((x) => x.id === id) || SUCURSALES_INICIALES.find((x) => x.id === id);
+  return s ? s.nombre : id;
+}
+
+/**
+ * La primera vez que un administrador abre esta versión: crea Guastatoya y Nebaj,
+ * pasa los productos que ya había a Guastatoya y copia las categorías a las dos.
+ * Los datos de antes no se borran (quedan de respaldo).
+ */
+async function prepararSucursales() {
+  try {
+    const conf = await fb.getDoc(fb.doc(db, 'config', 'sucursales'));
+    if (conf.exists() || conf.metadata.fromCache) return; // ya está hecho, o sin internet (se intenta después)
+    const [prods, cats] = await Promise.all([
+      fb.getDocs(fb.collection(db, 'productos')),
+      fb.getDocs(fb.collection(db, 'categorias')),
+    ]);
+    if (prods.metadata.fromCache || cats.metadata.fromCache) return;
+    aviso('Preparando sucursales…');
+    const ahora = new Date().toISOString();
+    const categorias = cats.docs.length
+      ? cats.docs.map((d) => ({ id: d.id, nombre: d.data().nombre }))
+      : CATEGORIAS_INICIALES.map((nombre) => ({ id: fb.doc(fb.collection(db, 'categorias')).id, nombre }));
+    const ops = SUCURSALES_INICIALES.map((s) => (l) => l.set(fb.doc(db, 'sucursales', s.id), { nombre: s.nombre, orden: s.orden, creado: ahora }));
+    prods.docs.forEach((d) => ops.push((l) => l.set(fb.doc(db, 'sucursales', 'guastatoya', 'productos', d.id), d.data())));
+    SUCURSALES_INICIALES.forEach((s) => categorias.forEach((c) =>
+      ops.push((l) => l.set(fb.doc(db, 'sucursales', s.id, 'categorias', c.id), { nombre: c.nombre }))));
+    ops.push((l) => l.set(fb.doc(db, 'config', 'sucursales'), { migrado: true, fecha: ahora, productosPasados: prods.size }));
+    await escribirEnGrupos(ops);
+    aviso(prods.size ? `${prods.size} productos pasaron a Guastatoya` : 'Sucursales listas');
+  } catch (e) {
+    console.error(e);
+    alerta('No se pudieron preparar las sucursales', mensajeError(e) + ' Se intentará de nuevo la próxima vez que abra la app.');
+  }
+}
+
+/** Solo administradores: ver y trabajar con otra sucursal. */
+function cambiarSucursal(id) {
+  if (!esAdmin() || id === sucursalActual) return;
+  sucursalActual = id;
+  try { localStorage.setItem(CLAVE_SUCURSAL, id); } catch (_) { /* nada */ }
+  quitarSuscripciones();
+  datos.productos = [];
+  datos.categorias = [];
+  filtroCategoria = 'todas';
+  suscribirDatos();
+  actualizarChipUsuario();
+  aviso(`Sucursal: ${nombreSucursal(id)}`);
+  const vista = (history.state || {}).vista;
+  irAPestana(PESTANAS.includes(vista) ? vista : 'escanear');
+}
+
+async function elegirSucursal() {
+  if (!esAdmin()) return;
+  const lista = datos.sucursales.length ? datos.sucursales : SUCURSALES_INICIALES;
+  const id = await modal({
+    titulo: 'Cambiar de sucursal',
+    html: `<p>Cada sucursal tiene sus propios productos y precios.</p>
+      <div class="lista-sucursales">${lista.map((s) => `
+        <button type="button" class="opcion-sucursal ${s.id === sucursalActual ? 'activa' : ''}" data-suc="${esc(s.id)}">
+          ${ico('ubicacion')}<span>${esc(s.nombre)}</span>${s.id === sucursalActual ? ico('guardar', 'marca') : ''}
+        </button>`).join('')}</div>`,
+    botones: [{ texto: 'Cerrar', clase: 'btn-secundario', valor: null }],
+    alAbrir: (cerrar) => {
+      $$('#modal-cuerpo [data-suc]').forEach((b) => b.addEventListener('click', () => cerrar(b.dataset.suc)));
+    },
+  });
+  if (id) cambiarSucursal(id);
+}
+
+function renderSucursales() {
+  const lista = datos.sucursales.length ? datos.sucursales : SUCURSALES_INICIALES;
+  $('#lista-sucursales').innerHTML = lista.map((s) => `
+    <li class="item ${s.id === sucursalActual ? 'sucursal-actual' : ''}">
+      <div class="item-info" data-suc="${esc(s.id)}">
+        <div class="item-nombre">${ico('ubicacion')} ${esc(s.nombre)}</div>
+        <div class="item-sub">${s.id === sucursalActual ? 'Está viendo esta sucursal' : 'Toque para cambiarse a esta sucursal'}</div>
+      </div>
+    </li>`).join('');
+}
+
+async function agregarSucursal() {
+  const nombre = (await pedirTexto('Nueva sucursal', '', 'Ej. Sanarate') || '').trim().replace(/\s+/g, ' ');
+  if (!nombre) return;
+  const id = normalizar(nombre).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  if (!id) return;
+  if (datos.sucursales.some((s) => s.id === id || normalizar(s.nombre) === normalizar(nombre))) {
+    alerta('Sucursal repetida', `Ya existe una sucursal llamada "${nombre}".`);
+    return;
+  }
+  // La sucursal nueva empieza sin productos y con las mismas categorías que la actual
+  const ops = [(l) => l.set(fb.doc(db, 'sucursales', id), { nombre, orden: datos.sucursales.length + 1, creado: new Date().toISOString() })];
+  datos.categorias.forEach((c) => ops.push((l) => l.set(fb.doc(db, 'sucursales', id, 'categorias', c.id), { nombre: c.nombre })));
+  try {
+    await escribirEnGrupos(ops);
+    aviso(`Sucursal "${nombre}" creada`);
+  } catch (e) {
+    console.error(e);
+    alerta('No se pudo crear la sucursal', mensajeError(e));
+  }
+}
+
+/** Para elegir la sucursal de un trabajador. */
+function opcionesDeSucursal(seleccion) {
+  const lista = datos.sucursales.length ? datos.sucursales : SUCURSALES_INICIALES;
+  return lista.map((s) => `<option value="${esc(s.id)}" ${s.id === seleccion ? 'selected' : ''}>${esc(s.nombre)}</option>`).join('');
 }
 
 /* ---------------- Pantalla de acceso ---------------- */
@@ -418,11 +551,7 @@ async function crearPrimerAdmin(e) {
     lote.set(refDoc('config', 'inicial'), { uid, fecha: new Date().toISOString() });
     await lote.commit();
     creandoPrimerAdmin = false;
-    // Categorías iniciales (si no hay datos anteriores en el teléfono que las traigan)
-    if (!leerDatosAnteriores()) {
-      const ops = CATEGORIAS_INICIALES.map((n) => (l) => l.set(fb.doc(refColeccion('categorias')), { nombre: n }));
-      escribirEnGrupos(ops).catch((err) => console.error(err));
-    }
+    // Las sucursales y sus categorías iniciales las crea prepararSucursales() al entrar
   } catch (err) {
     console.error(err);
     error(err.code === 'auth/email-already-in-use' ? 'Ese usuario ya existe. Elija otro.' : mensajeError(err));
@@ -1083,9 +1212,10 @@ async function eliminarCategoria(id) {
 function renderAjustes() {
   $('#info-cuenta').innerHTML = `${esc(sesion.nombre)} · usuario <strong>${esc(sesion.usuario)}</strong><br>
     <span class="etiqueta-rol ${sesion.rol}">${esAdmin() ? ico('corona') + ' Administrador' : ico('usuario') + ' Trabajador'}</span>`;
-  $('#info-datos').innerHTML = `${datos.productos.length} productos y ${datos.categorias.length} categorías en la nube.<br>
+  $('#info-datos').innerHTML = `${esAdmin() ? `Sucursal ${esc(nombreSucursal())}: ` : ''}${datos.productos.length} productos y ${datos.categorias.length} categorías en la nube.<br>
     ${navigator.onLine ? ico('conectado', 'verde') + ' Conectado: los cambios se comparten al momento.' : ico('sin-internet', 'amarillo') + ' Sin internet: los cambios se subirán cuando vuelva la señal.'}`;
   if (esAdmin()) {
+    renderSucursales();
     renderUsuarios();
     renderEstadoLlave();
   }
@@ -1103,12 +1233,13 @@ function renderUsuarios() {
     const etiqueta = !u.activo
       ? '<span class="etiqueta-rol inactivo">Desactivado</span>'
       : `<span class="etiqueta-rol ${u.rol}">${u.rol === 'admin' ? ico('corona') + ' Administrador' : ico('usuario') + ' Trabajador'}</span>`;
+    const sucursal = u.rol === 'admin' ? '' : ` · <span class="etiqueta-sucursal">${ico('ubicacion')} ${esc(nombreSucursal(u.sucursalId || 'guastatoya'))}</span>`;
     const yo = u.uid === sesion.uid ? ' (usted)' : '';
     return `
       <li class="item ${u.activo ? '' : 'inactivo'}">
         <div class="item-info" data-accion="usuario" data-id="${u.uid}">
           <div class="item-nombre">${esc(u.nombre)}${yo}</div>
-          <div class="item-sub">usuario: ${esc(u.usuario)} · ${etiqueta}</div>
+          <div class="item-sub">usuario: ${esc(u.usuario)} · ${etiqueta}${sucursal}</div>
         </div>
         ${u.uid === sesion.uid ? '' : `<button class="btn-icono-peq" data-accion="usuario" data-id="${u.uid}" aria-label="Opciones">${ico('opciones')}</button>`}
       </li>`;
@@ -1155,6 +1286,10 @@ async function nuevoUsuario() {
         <option value="trabajador">Trabajador (solo ve y escanea)</option>
         <option value="admin">Administrador (control total)</option>
       </select>
+      <div id="nu-sucursal-caja">
+        <label class="etiqueta" for="nu-sucursal">Sucursal donde trabaja</label>
+        <select id="nu-sucursal" class="input">${opcionesDeSucursal(sucursalActual)}</select>
+      </div>
       <label class="etiqueta" for="nu-nombre">Nombre</label>
       <input id="nu-nombre" class="input" type="text" maxlength="40" placeholder="Ej. María López">
       <label class="etiqueta" for="nu-usuario">Usuario (para entrar)</label>
@@ -1169,6 +1304,7 @@ async function nuevoUsuario() {
         accion: async () => {
           const error = (m) => { $('#nu-error').textContent = m; return MANTENER_ABIERTA; };
           const rol = $('#nu-rol').value;
+          const sucursalId = $('#nu-sucursal').value;
           const nombre = $('#nu-nombre').value.trim().replace(/\s+/g, ' ');
           const usuario = normalizarUsuario($('#nu-usuario').value);
           if (!nombre) return error('Escriba el nombre.');
@@ -1182,7 +1318,9 @@ async function nuevoUsuario() {
             if (existe.exists()) return error('Ese usuario ya existe. Elija otro.');
             const { uid, email } = await crearCuenta(usuario, clave);
             const lote = fb.writeBatch(db);
-            lote.set(refDoc('usuarios', uid), { nombre, usuario, rol, activo: true, creado: new Date().toISOString() });
+            const datosUsuario = { nombre, usuario, rol, activo: true, creado: new Date().toISOString() };
+            if (rol === 'trabajador') datosUsuario.sucursalId = sucursalId;
+            lote.set(refDoc('usuarios', uid), datosUsuario);
             lote.set(refDoc('acceso', usuario), { email, uid });
             await lote.commit();
             aviso(`Usuario "${usuario}" creado ✔`);
@@ -1194,7 +1332,13 @@ async function nuevoUsuario() {
         },
       },
     ],
-    alAbrir: () => $('#nu-nombre').focus(),
+    alAbrir: () => {
+      // La sucursal solo se pide para trabajadores (los administradores ven todas)
+      const verSucursal = () => $('#nu-sucursal-caja').classList.toggle('oculto', $('#nu-rol').value !== 'trabajador');
+      $('#nu-rol').addEventListener('change', verSucursal);
+      verSucursal();
+      $('#nu-nombre').focus();
+    },
   });
 }
 
@@ -1207,6 +1351,7 @@ async function opcionesUsuario(uid) {
     html: `<p>Usuario: <strong>${esc(u.usuario)}</strong></p>
       <div class="acceso-paso">
         <button class="btn btn-secundario btn-bloque" data-op="clave">${ico('llave')}Cambiar contraseña</button>
+        ${u.activo && u.rol === 'trabajador' ? `<button class="btn btn-secundario btn-bloque" data-op="sucursal">${ico('ubicacion')}Cambiar sucursal (ahora: ${esc(nombreSucursal(u.sucursalId || 'guastatoya'))})</button>` : ''}
         ${u.activo ? `<button class="btn btn-secundario btn-bloque" data-op="rol">${otroRol === 'admin' ? ico('corona') + 'Hacer administrador' : ico('usuario') + 'Hacer trabajador'}</button>` : ''}
         <button class="btn ${u.activo ? 'btn-peligro' : 'btn-exito'} btn-bloque" data-op="activo">${u.activo ? ico('bloquear') + 'Desactivar (ya no podrá entrar)' : ico('guardar') + 'Activar de nuevo'}</button>
       </div>`,
@@ -1216,12 +1361,15 @@ async function opcionesUsuario(uid) {
     },
   });
   if (eleccion === 'clave') cambiarClaveDe(u);
+  else if (eleccion === 'sucursal') cambiarSucursalDe(u);
   else if (eleccion === 'rol') {
     const texto = otroRol === 'admin'
       ? `¿Hacer administrador a ${u.nombre}? Podrá cambiar precios, borrar productos y manejar usuarios.`
       : `¿Hacer trabajador a ${u.nombre}? Solo podrá ver y escanear.`;
     if (await confirmar('Cambiar tipo de usuario', texto, 'Sí, cambiar')) {
-      enNube(fb.updateDoc(refDoc('usuarios', uid), { rol: otroRol }));
+      // Al volverse trabajador queda en la sucursal que tenía (o la que el administrador está viendo)
+      const cambios = otroRol === 'trabajador' ? { rol: otroRol, sucursalId: u.sucursalId || sucursalActual } : { rol: otroRol };
+      enNube(fb.updateDoc(refDoc('usuarios', uid), cambios));
       aviso('Tipo de usuario cambiado');
     }
   } else if (eleccion === 'activo') {
@@ -1229,6 +1377,22 @@ async function opcionesUsuario(uid) {
     enNube(fb.updateDoc(refDoc('usuarios', uid), { activo: !u.activo }));
     aviso(u.activo ? 'Usuario desactivado' : 'Usuario activado');
   }
+}
+
+async function cambiarSucursalDe(u) {
+  const id = await modal({
+    titulo: `Sucursal de ${u.nombre}`,
+    html: `<p>${esc(u.nombre)} solo verá los productos y precios de la sucursal que elija.</p>
+      <label class="etiqueta" for="cs-sucursal">Sucursal</label>
+      <select id="cs-sucursal" class="input">${opcionesDeSucursal(u.sucursalId || 'guastatoya')}</select>`,
+    botones: [
+      { texto: 'Cancelar', clase: 'btn-secundario', valor: null },
+      { texto: 'Guardar', clase: 'btn-primario', accion: () => $('#cs-sucursal').value },
+    ],
+  });
+  if (!id || id === (u.sucursalId || 'guastatoya')) return;
+  enNube(fb.updateDoc(refDoc('usuarios', u.uid), { sucursalId: id }));
+  aviso(`${u.nombre} ahora está en ${nombreSucursal(id)}`);
 }
 
 /**
@@ -1257,6 +1421,7 @@ async function cambiarClaveDe(u) {
             const lote = fb.writeBatch(db);
             lote.set(refDoc('usuarios', uid), {
               nombre: u.nombre, usuario: u.usuario, rol: u.rol, activo: u.activo,
+              ...(u.sucursalId ? { sucursalId: u.sucursalId } : {}),
               creado: new Date().toISOString(), reemplazaA: u.uid,
             });
             lote.update(refDoc('usuarios', u.uid), { activo: false, reemplazadoPor: uid });
@@ -1717,6 +1882,21 @@ function renderInventario(resaltar = -1) {
       </div>`;
     return;
   }
+  // La hoja se empezó en otra sucursal (los productos y costos son de allá)
+  if (inventario.sucursalId && inventario.sucursalId !== sucursalActual) {
+    const otra = nombreSucursal(inventario.sucursalId);
+    v.innerHTML = `
+      <div class="tarjeta inv-inicio">
+        ${ico('ubicacion', 'inv-icono-grande')}
+        <h2>Hoja de ${esc(otra)}</h2>
+        <p class="texto-suave">Esta hoja de inventario se empezó en la sucursal <strong>${esc(otra)}</strong>
+          (${inventario.lineas.length} producto${inventario.lineas.length === 1 ? '' : 's'}).
+          ${esAdmin() ? 'Para seguir contando, cámbiese a esa sucursal.' : 'Termínela o bórrela para empezar una nueva.'}</p>
+        ${esAdmin() ? `<button class="btn btn-primario btn-bloque btn-compacto" data-inv="ir-sucursal">${ico('ubicacion')}Ir a ${esc(otra)}</button>` : ''}
+        <button class="btn-enlace" data-inv="terminar">${ico('eliminar')}Terminar y borrar hoja</button>
+      </div>`;
+    return;
+  }
   const filas = inventario.lineas.map((l, i) => `
     <div class="hoja-fila ${i === resaltar ? 'resaltada' : ''}" data-inv="editar" data-i="${i}">
       <div class="hoja-producto">
@@ -1755,6 +1935,7 @@ function alTocarInventario(e) {
   if (!el) return;
   const accion = el.dataset.inv;
   if (accion === 'nuevo') nuevoInventario();
+  else if (accion === 'ir-sucursal') cambiarSucursal(inventario.sucursalId);
   else if (accion === 'negocio') cambiarNegocioInventario();
   else if (accion === 'escanear') escanearParaInventario();
   else if (accion === 'buscar') buscarParaInventario();
@@ -1790,13 +1971,15 @@ async function pedirNombreNegocio(titulo, textoBoton, valor) {
   });
 }
 
+const claveNegocio = () => `${CLAVE_ULTIMO_NEGOCIO}_${sucursalActual}`; // recuerda el nombre por sucursal
+
 async function nuevoInventario() {
-  let ultimo = 'Abarroterías VC';
-  try { ultimo = localStorage.getItem(CLAVE_ULTIMO_NEGOCIO) || ultimo; } catch (_) { /* nada */ }
+  let ultimo = `Abarroterías VC ${nombreSucursal()}`;
+  try { ultimo = localStorage.getItem(claveNegocio()) || ultimo; } catch (_) { /* nada */ }
   const negocio = await pedirNombreNegocio('Nuevo inventario', 'Empezar', ultimo);
   if (!negocio) return;
-  try { localStorage.setItem(CLAVE_ULTIMO_NEGOCIO, negocio); } catch (_) { /* nada */ }
-  inventario = { inicio: new Date().toISOString(), negocio, quien: sesion.nombre, lineas: [] };
+  try { localStorage.setItem(claveNegocio(), negocio); } catch (_) { /* nada */ }
+  inventario = { inicio: new Date().toISOString(), negocio, sucursalId: sucursalActual, quien: sesion.nombre, lineas: [] };
   guardarInventario();
   renderInventario();
 }
@@ -1805,7 +1988,7 @@ async function cambiarNegocioInventario() {
   const negocio = await pedirNombreNegocio('Nombre del negocio', 'Guardar', negocioInventario());
   if (!negocio) return;
   inventario.negocio = negocio;
-  try { localStorage.setItem(CLAVE_ULTIMO_NEGOCIO, negocio); } catch (_) { /* nada */ }
+  try { localStorage.setItem(claveNegocio(), negocio); } catch (_) { /* nada */ }
   guardarInventario();
   renderInventario();
 }
@@ -2314,11 +2497,11 @@ cargarInventario();
 /* ---------------- Respaldo ---------------- */
 async function exportarRespaldo() {
   const contenido = JSON.stringify({
-    app: 'abarroterias-san-vicenta', version: 2, fecha: new Date().toISOString(),
+    app: 'abarroterias-san-vicenta', version: 3, fecha: new Date().toISOString(), sucursal: nombreSucursal(),
     categorias: datos.categorias, productos: datos.productos,
   }, null, 2);
   const hoy = new Date().toISOString().slice(0, 10);
-  const nombreArchivo = `respaldo-san-vicenta-${hoy}.json`;
+  const nombreArchivo = `respaldo-${sucursalActual}-${hoy}.json`;
   const archivo = new File([contenido], nombreArchivo, { type: 'application/json' });
 
   // En el teléfono se puede compartir directo (WhatsApp, Drive, correo…)
@@ -2384,7 +2567,7 @@ async function importarRespaldo(archivo) {
     return;
   }
   const ok = await confirmar('Cargar respaldo',
-    `El archivo tiene ${contenido.productos.length} productos y ${contenido.categorias.length} categorías. Se agregarán a la nube (los que ya existen se actualizan con los datos del archivo). ¿Continuar?`,
+    `El archivo tiene ${contenido.productos.length} productos y ${contenido.categorias.length} categorías. Se agregarán a la sucursal ${nombreSucursal()} (los que ya existen se actualizan con los datos del archivo). ¿Continuar?`,
     'Cargar');
   if (!ok) return;
   aviso('Subiendo respaldo…');
@@ -2465,6 +2648,13 @@ function conectarEventos() {
   $('#btn-llave-ia').addEventListener('click', configurarLlave);
   $('#f-vincular-btn').addEventListener('click', vincularCodigo);
   $('#vista-inventario').addEventListener('click', alTocarInventario);
+  // Sucursales (solo administradores)
+  $('#chip-usuario').addEventListener('click', () => { if (esAdmin()) elegirSucursal(); });
+  $('#btn-nueva-sucursal').addEventListener('click', agregarSucursal);
+  $('#lista-sucursales').addEventListener('click', (e) => {
+    const el = e.target.closest('[data-suc]');
+    if (el) cambiarSucursal(el.dataset.suc);
+  });
   $('#vista-factura').addEventListener('input', alCambiarFactura);
   $('#vista-factura').addEventListener('change', alCambiarFactura);
   $('#vista-factura').addEventListener('click', (e) => {

@@ -46,6 +46,8 @@
     <symbol id="i-nota" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
     <symbol id="i-bloquear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></symbol>
     <symbol id="i-inventario" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M9 14l2 2 4-4"/></symbol>
+    <symbol id="i-ubicacion" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></symbol>
+    <symbol id="i-abajo" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
     <symbol id="i-compartir" viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v13"/></symbol>
   </svg>
   <!-- ============ CARGANDO ============ -->
@@ -107,7 +109,7 @@
         <p id="titulo-vista" class="subtitulo">Escanear producto</p>
       </div>
     </div>
-    <span id="chip-usuario" class="chip-usuario"></span>
+    <button type="button" id="chip-usuario" class="chip-usuario" aria-label="Sucursal"></button>
   </header>
 
   <main id="contenido" class="solo-sesion">
@@ -169,6 +171,14 @@
         <p id="info-cuenta" class="texto-suave"></p>
         <button id="btn-mi-clave" class="btn btn-secundario btn-bloque"><svg class="ico" aria-hidden="true"><use href="#i-llave"/></svg>Cambiar mi contraseña</button>
         <button id="btn-salir" class="btn btn-contorno btn-bloque"><svg class="ico" aria-hidden="true"><use href="#i-salir"/></svg>Cerrar sesión</button>
+      </div>
+
+      <div class="tarjeta solo-admin">
+        <h2>Sucursales</h2>
+        <p class="texto-suave">Cada sucursal tiene sus propios productos y precios. Toque una para cambiarse a ella
+          (también desde el nombre de la sucursal, arriba a la derecha).</p>
+        <ul id="lista-sucursales" class="lista"></ul>
+        <button id="btn-nueva-sucursal" class="btn btn-secundario btn-bloque"><svg class="ico" aria-hidden="true"><use href="#i-mas"/></svg>Agregar sucursal</button>
       </div>
 
       <div class="tarjeta solo-admin">
