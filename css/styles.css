@@ -782,3 +782,28 @@ button.hoja-negocio {
 /* Mantener el espacio de la "Q" y de la lupa en las casillas compactas */
 .modal.con-teclado .input-moneda .input { padding-left: 34px; }
 .modal.con-teclado .buscador .input { padding-left: 46px; }
+
+/* ============================================================
+   Sucursales
+   ============================================================ */
+button.chip-usuario { font-family: inherit; cursor: default; color: var(--texto-suave); }
+.chip-usuario.chip-sucursal { cursor: pointer; color: var(--texto); border-color: rgba(111, 155, 255, 0.45); }
+.chip-usuario.chip-sucursal .ico { color: var(--azul-claro); }
+.chip-usuario .chip-flecha { width: 15px; height: 15px; margin-left: -2px; }
+.lista-sucursales { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.opcion-sucursal {
+  display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 10px 14px;
+  border-radius: 14px; border: 1px solid var(--vidrio-borde); background: rgba(255, 255, 255, 0.06);
+  color: var(--texto); font: inherit; font-size: 1.1rem; font-weight: 800; text-align: left;
+}
+.opcion-sucursal .ico { width: 22px; height: 22px; color: var(--azul-claro); }
+.opcion-sucursal span { flex: 1; }
+.opcion-sucursal.activa { background: linear-gradient(135deg, rgba(74, 134, 255, 0.35), rgba(36, 89, 230, 0.25)); border-color: rgba(111, 155, 255, 0.6); }
+.opcion-sucursal .marca { color: var(--verde); }
+.item.sucursal-actual { border-color: rgba(111, 155, 255, 0.6); }
+.item-nombre .ico { color: var(--azul-claro); }
+.etiqueta-sucursal { display: inline-flex; align-items: center; gap: 3px; color: var(--azul-claro); font-weight: 700; }
+.etiqueta-sucursal .ico { width: 14px; height: 14px; }
+
+/* Avisos largos: hasta dos renglones en vez de cortarse */
+.aviso { white-space: normal; width: max-content; max-width: 88vw; line-height: 1.3; }

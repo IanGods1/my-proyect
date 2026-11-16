@@ -32,7 +32,16 @@ service cloud.firestore {
         && d.nombre is string && d.nombre.size() > 0 && d.nombre.size() <= 40
         && d.usuario is string && d.usuario.matches('^[a-z0-9._]{3,20}$')
         && d.rol in ['admin', 'trabajador']
-        && d.activo is bool;
+        && d.activo is bool
+        && (!('sucursalId' in d) || d.sucursalId is string);
+    }
+    // Sucursal de la persona (si no tiene, Guastatoya)
+    function miSucursal() {
+      return get(ruta('usuarios', request.auth.uid)).data.get('sucursalId', 'guastatoya');
+    }
+    // Puede ver los datos de una sucursal: administradores todas; trabajadores solo la suya
+    function puedeVer(suc) {
+      return esAdmin() || (activo() && miSucursal() == suc);
     }
 
     // Marca de que la app ya tiene administrador principal (cualquiera puede ver si existe)
@@ -42,6 +51,13 @@ service cloud.firestore {
         && request.resource.data.uid == request.auth.uid
         && existsAfter(ruta('usuarios', request.auth.uid));
       allow update, delete: if false;
+    }
+
+    // Marca de que ya se crearon las sucursales (Guastatoya y Nebaj)
+    match /config/sucursales {
+      allow get: if activo();
+      allow create, update: if esAdmin();
+      allow delete: if false;
     }
 
     // Usuario → correo interno para iniciar sesión (solo se puede consultar uno por nombre)
@@ -69,7 +85,32 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Productos: todos los usuarios activos los ven; solo administradores los cambian
+    // ===== Sucursales: cada una con su propia lista de productos y categorías =====
+    match /sucursales/{suc} {
+      allow read: if activo();
+      allow create, update: if esAdmin()
+        && request.resource.data.nombre is string && request.resource.data.nombre.size() > 0;
+      allow delete: if false;
+
+      // Productos de la sucursal: los ve quien pertenece a ella (y los administradores); solo administradores los cambian
+      match /productos/{id} {
+        allow read: if puedeVer(suc);
+        allow create, update: if esAdmin()
+          && request.resource.data.nombre is string && request.resource.data.nombre.size() > 0
+          && request.resource.data.precioVenta is number && request.resource.data.precioVenta >= 0;
+        allow delete: if esAdmin();
+      }
+
+      // Categorías de la sucursal: igual que productos
+      match /categorias/{id} {
+        allow read: if puedeVer(suc);
+        allow create, update: if esAdmin()
+          && request.resource.data.nombre is string && request.resource.data.nombre.size() > 0;
+        allow delete: if esAdmin();
+      }
+    }
+
+    // ===== Datos de antes de las sucursales (se guardan como respaldo; ya no se usan) =====
     match /productos/{id} {
       allow read: if activo();
       allow create, update: if esAdmin()
