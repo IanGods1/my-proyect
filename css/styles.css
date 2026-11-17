@@ -807,3 +807,7 @@ button.chip-usuario { font-family: inherit; cursor: default; color: var(--texto-
 
 /* Avisos largos: hasta dos renglones en vez de cortarse */
 .aviso { white-space: normal; width: max-content; max-width: 88vw; line-height: 1.3; }
+
+/* Inventario: Enviar y Terminar arriba de la hoja; Escanear y Buscar abajo */
+.inv-acciones-arriba { display: flex; flex-direction: column; align-items: stretch; gap: 2px; }
+.inv-acciones-arriba .btn-enlace { align-self: center; }
