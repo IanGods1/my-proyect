@@ -900,3 +900,13 @@ html[data-tema="grafito"] {
 .tema-muestra .ico { position: absolute; inset: 0; margin: auto; width: 24px; height: 24px; color: #fff; stroke-width: 3; }
 .tema.activo { border-color: rgba(var(--acento-claro-rgb), 0.8); background: rgba(var(--acento-rgb), 0.2); color: var(--texto); }
 @media (max-width: 360px) { .temas { grid-template-columns: repeat(4, 1fr); gap: 6px; } .tema-muestra { width: 38px; height: 38px; } }
+
+/* Logo de la tienda: toma el color elegido en Ajustes */
+.logo-tienda {
+  display: inline-block; width: 40px; height: 40px; flex-shrink: 0;
+  background: linear-gradient(160deg, var(--acento-1), var(--acento-2));
+  -webkit-mask: url('../icons/tienda-mascara.png') center / contain no-repeat;
+  mask: url('../icons/tienda-mascara.png') center / contain no-repeat;
+}
+.logo-tienda.logo-grande { width: 96px; height: 96px; display: block; margin: 0 auto; }
+.acceso-logo .logo-tienda { filter: drop-shadow(0 10px 30px rgba(var(--acento-rgb), 0.55)); }
