@@ -2767,7 +2767,23 @@ function conectarEventos() {
 function registrarServiceWorker() {
   if (USAR_EMULADOR) return;
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
-    navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Service worker no registrado', e));
+    // Si ya había una versión instalada y llega una nueva, la app se recarga sola con la nueva
+    // (la primera instalación no recarga: no había versión anterior)
+    let controlador = navigator.serviceWorker.controller;
+    let recargando = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      const habiaVersion = !!controlador;
+      controlador = navigator.serviceWorker.controller;
+      if (!habiaVersion || recargando) return;
+      recargando = true;
+      location.reload();
+    });
+    navigator.serviceWorker.register('sw.js').then((registro) => {
+      // El iPhone deja la app abierta en memoria: al volver a ella, revisar si hay versión nueva
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') registro.update().catch(() => {});
+      });
+    }).catch((e) => console.warn('Service worker no registrado', e));
   }
 }
 
