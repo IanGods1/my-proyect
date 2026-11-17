@@ -381,7 +381,10 @@ async function prepararSucursales() {
     aviso(prods.size ? `${prods.size} productos pasaron a Guastatoya` : 'Sucursales listas');
   } catch (e) {
     console.error(e);
-    alerta('No se pudieron preparar las sucursales', mensajeError(e) + ' Se intentará de nuevo la próxima vez que abra la app.');
+    const causa = e && String(e.code || '').includes('permission-denied')
+      ? 'Faltan las reglas de seguridad nuevas en Firebase (Firestore → Reglas → pegar y Publicar).'
+      : mensajeError(e);
+    alerta('No se pudieron preparar las sucursales', causa + ' Se intentará de nuevo la próxima vez que abra la app.');
   }
 }
 
@@ -1906,9 +1909,9 @@ function renderInventario(resaltar = -1) {
       <div class="hoja-monto">${q(totalDeLinea(l))}</div>
     </div>`).join('');
   v.innerHTML = `
-    <div class="botones-fila">
-      <button class="btn btn-primario btn-grande" data-inv="escanear">${ico('escanear')}Escanear</button>
-      <button class="btn btn-secundario btn-grande" data-inv="buscar">${ico('buscar')}Buscar</button>
+    <div class="inv-acciones-arriba">
+      <button class="btn btn-primario btn-compacto" data-inv="enviar">${ico('compartir')}Enviar por WhatsApp</button>
+      <button class="btn-enlace" data-inv="terminar">${ico('eliminar')}Terminar y borrar hoja</button>
     </div>
     <div class="hoja">
       <div class="hoja-encabezado">
@@ -1922,8 +1925,10 @@ function renderInventario(resaltar = -1) {
       <p class="hoja-pie">${inventario.lineas.length} producto${inventario.lineas.length === 1 ? '' : 's'} · ${textoCantidad(unidadesInventario())} unidades
         ${inventario.lineas.length ? '<br>Toque un producto para corregir la cantidad o quitarlo.' : ''}</p>
     </div>
-    <button class="btn btn-primario btn-bloque btn-compacto" data-inv="enviar">${ico('compartir')}Enviar por WhatsApp</button>
-    <button class="btn-enlace" data-inv="terminar">${ico('eliminar')}Terminar y borrar hoja</button>`;
+    <div class="botones-fila">
+      <button class="btn btn-primario btn-grande" data-inv="escanear">${ico('escanear')}Escanear</button>
+      <button class="btn btn-secundario btn-grande" data-inv="buscar">${ico('buscar')}Buscar</button>
+    </div>`;
   if (resaltar >= 0) {
     const fila = v.querySelector(`.hoja-fila[data-i="${resaltar}"]`);
     if (fila) fila.scrollIntoView({ behavior: 'smooth', block: 'center' });
