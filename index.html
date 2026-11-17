@@ -14,6 +14,10 @@
   <link rel="icon" type="image/png" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="css/styles.css">
+  <script>
+    // Color elegido en Ajustes: se aplica antes de dibujar la app (sin parpadeo)
+    try { var tema = localStorage.getItem('abarroterias_vc_tema'); if (tema && tema !== 'azul') document.documentElement.dataset.tema = tema; } catch (e) {}
+  </script>
 </head>
 <body class="sin-sesion">
   <!-- Íconos de línea (se usan con <svg class="ico"><use href="#i-nombre"/></svg>) -->
@@ -171,6 +175,12 @@
         <p id="info-cuenta" class="texto-suave"></p>
         <button id="btn-mi-clave" class="btn btn-secundario btn-bloque"><svg class="ico" aria-hidden="true"><use href="#i-llave"/></svg>Cambiar mi contraseña</button>
         <button id="btn-salir" class="btn btn-contorno btn-bloque"><svg class="ico" aria-hidden="true"><use href="#i-salir"/></svg>Cerrar sesión</button>
+      </div>
+
+      <div class="tarjeta">
+        <h2>Color de la app</h2>
+        <p class="texto-suave">Elija el color que más le guste. Se guarda en este teléfono.</p>
+        <div id="lista-temas" class="temas"></div>
       </div>
 
       <div class="tarjeta solo-admin">

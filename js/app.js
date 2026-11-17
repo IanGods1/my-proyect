@@ -1211,8 +1211,49 @@ async function eliminarCategoria(id) {
   renderCategorias();
 }
 
+/* ---------------- Color de la app ---------------- */
+const CLAVE_TEMA = 'abarroterias_vc_tema'; // (el mismo nombre se usa en index.html)
+const TEMAS = [
+  { id: 'azul', nombre: 'Azul', c1: '#4a86ff', c2: '#2459e6', fondo: '#050a18' },
+  { id: 'morado', nombre: 'Morado', c1: '#a07bff', c2: '#6d28d9', fondo: '#07040f' },
+  { id: 'verde', nombre: 'Verde', c1: '#2fcf6f', c2: '#15803d', fondo: '#020a06' },
+  { id: 'turquesa', nombre: 'Turquesa', c1: '#22c9b5', c2: '#0f766e', fondo: '#020b0b' },
+  { id: 'vino', nombre: 'Vino', c1: '#f43f5e', c2: '#be123c', fondo: '#0f0306' },
+  { id: 'naranja', nombre: 'Naranja', c1: '#fb8a3c', c2: '#c2410c', fondo: '#0f0703' },
+  { id: 'rosa', nombre: 'Rosa', c1: '#f472b6', c2: '#be185d', fondo: '#0f030a' },
+  { id: 'grafito', nombre: 'Grafito', c1: '#7c8ba1', c2: '#475569', fondo: '#050607' },
+];
+const temaActual = () => {
+  try { return localStorage.getItem(CLAVE_TEMA) || 'azul'; } catch (_) { return 'azul'; }
+};
+
+function aplicarTema(id) {
+  const t = TEMAS.find((x) => x.id === id) || TEMAS[0];
+  if (t.id === 'azul') delete document.documentElement.dataset.tema;
+  else document.documentElement.dataset.tema = t.id;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', t.fondo);
+}
+
+function renderTemas() {
+  const actual = temaActual();
+  $('#lista-temas').innerHTML = TEMAS.map((t) => `
+    <button type="button" class="tema ${t.id === actual ? 'activo' : ''}" data-tema="${t.id}" aria-label="Color ${t.nombre}">
+      <span class="tema-muestra" style="background: linear-gradient(135deg, ${t.c1}, ${t.c2})">${t.id === actual ? ico('guardar') : ''}</span>
+      ${t.nombre}
+    </button>`).join('');
+}
+
+function elegirTema(id) {
+  try { localStorage.setItem(CLAVE_TEMA, id); } catch (_) { /* nada */ }
+  aplicarTema(id);
+  renderTemas();
+  aviso(`Color: ${(TEMAS.find((x) => x.id === id) || TEMAS[0]).nombre}`);
+}
+
 /* ---------------- Pantalla: Ajustes ---------------- */
 function renderAjustes() {
+  renderTemas();
   $('#info-cuenta').innerHTML = `${esc(sesion.nombre)} · usuario <strong>${esc(sesion.usuario)}</strong><br>
     <span class="etiqueta-rol ${sesion.rol}">${esAdmin() ? ico('corona') + ' Administrador' : ico('usuario') + ' Trabajador'}</span>`;
   $('#info-datos').innerHTML = `${esAdmin() ? `Sucursal ${esc(nombreSucursal())}: ` : ''}${datos.productos.length} productos y ${datos.categorias.length} categorías en la nube.<br>
@@ -2653,6 +2694,10 @@ function conectarEventos() {
   $('#btn-llave-ia').addEventListener('click', configurarLlave);
   $('#f-vincular-btn').addEventListener('click', vincularCodigo);
   $('#vista-inventario').addEventListener('click', alTocarInventario);
+  $('#lista-temas').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-tema]');
+    if (b) elegirTema(b.dataset.tema);
+  });
   // Sucursales (solo administradores)
   $('#chip-usuario').addEventListener('click', () => { if (esAdmin()) elegirSucursal(); });
   $('#btn-nueva-sucursal').addEventListener('click', agregarSucursal);
@@ -2796,6 +2841,7 @@ async function pedirAlmacenamientoPersistente() {
   } catch (_) { /* no es crítico */ }
 }
 
+aplicarTema(temaActual());
 conectarEventos();
 registrarServiceWorker();
 pedirAlmacenamientoPersistente();
