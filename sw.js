@@ -1,6 +1,6 @@
 /* Guarda la app en el teléfono para que abra sin internet.
    Si cambia algún archivo de la app, suba el número de VERSION. */
-const VERSION = 'san-vicenta-v15';
+const VERSION = 'san-vicenta-v16';
 const ARCHIVOS = [
   './',
   './index.html',
@@ -21,7 +21,10 @@ const ARCHIVOS = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(ARCHIVOS)).then(() => self.skipWaiting()));
+  // cache: 'reload' = pedir siempre los archivos nuevos a internet (GitHub Pages deja copias de hasta
+  // 10 minutos en la memoria del teléfono; sin esto, una versión nueva podía quedarse con archivos viejos)
+  const pedidos = ARCHIVOS.map((url) => new Request(url, { cache: 'reload' }));
+  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(pedidos)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
