@@ -1,0 +1,13 @@
+# Configuración para publicar la versión web en Netlify (Base directory: web).
+[build]
+  command = "npm ci && npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# El service worker no debe quedar en caché para que las actualizaciones lleguen al instante.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"

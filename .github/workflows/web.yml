@@ -1,7 +1,8 @@
-name: Publicar versión web
+name: Versión web
 
-# Cada cambio en la carpeta web/ prueba, compila y publica la versión web en la rama gh-pages
-# (GitHub Pages: https://<usuario>.github.io/<repositorio>/).
+# Cada cambio en la carpeta web/ prueba y compila la versión web y deja el resultado como archivo
+# descargable. NO publica en GitHub Pages: este repositorio ya publica otra aplicación desde main.
+# Para el enlace de la web ver README ("Dónde publicarla").
 on:
   push:
     paths:
@@ -10,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: publicar-web
@@ -40,14 +41,9 @@ jobs:
       - name: Compilar
         run: npm run build
 
-      - name: Publicar en la rama gh-pages
-        working-directory: web/dist
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          git init -q -b gh-pages
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -q -m "Publicar versión web ($GITHUB_SHA)"
-          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+      - name: Guardar la versión compilada
+        uses: actions/upload-artifact@v4
+        with:
+          name: Guastaccesorio-web
+          path: web/dist
+          include-hidden-files: true

@@ -174,28 +174,23 @@ La misma aplicación, hecha como página web instalable (PWA). Usa **la misma ba
 
 - Funciones: todas las de la app (buscar, clases de vidrio, grupos, modelos, marca por grupo, importar/exportar CSV y Excel, contraseñas, roles, sesión permanente y cierre de sesión del trabajador al cambiar la contraseña).
 - Funciona sin internet para buscar: guarda una copia de los datos en el navegador. Los cambios hechos sin conexión se suben al volver internet.
-- El código está en la carpeta [`web/`](web/).
+- El código está en la carpeta [`web/`](web/) y se publica aparte de la otra aplicación del repositorio (ver [Dónde publicarla](#dónde-publicarla-importante)).
 
-### Enlace de la versión web
+### Dónde publicarla (importante)
 
-```
-https://iangods1.github.io/my-proyect/
-```
+> ⚠️ **No cambies la configuración de GitHub Pages de este repositorio.** La rama `main` de este repositorio tiene otra aplicación (Abarroterías VC) que GitHub Pages ya publica en `https://iangods1.github.io/my-proyect/`. Si se cambia el origen de Pages, esa app deja de verse.
 
-(Es `https://<tu-usuario>.github.io/<nombre-del-repositorio>/`.) Funciona cuando termine el paso siguiente.
+El flujo **Publicar versión web** (pestaña **Actions**) prueba y compila la web en cada cambio de `web/` y deja el resultado como archivo descargable (**Guastaccesorio-web**). Para tener un enlace propio, sin tocar la otra app, hay tres caminos:
 
-### Activarla en GitHub (una sola vez)
+1. **Netlify (gratis, el más simple):** publica desde esta rama y se actualiza solo con cada cambio.
+   1. Entra a <https://app.netlify.com> e inicia sesión con tu cuenta de GitHub.
+   2. **Add new site → Import an existing project → GitHub** y elige el repositorio `my-proyect`.
+   3. **Branch to deploy:** `claude/casematch-android-app-2a4r13`. **Base directory:** `web`. El resto (comando de compilación y carpeta a publicar) ya está en [`web/netlify.toml`](web/netlify.toml).
+   4. Toca **Deploy**. En 1 o 2 minutos te da un enlace tipo `https://algo.netlify.app`; en **Site configuration → Change site name** puedes dejarlo como `guastaccesorio`.
+2. **Otro repositorio de GitHub solo para la web:** crea un repositorio nuevo y copia la carpeta `web/`; con Pages sobre ese repositorio queda en `https://<usuario>.github.io/<repositorio>/`.
+3. **Cloudflare Pages:** igual que Netlify (Root directory `web`, Build command `npm ci && npm run build`, Output directory `dist`).
 
-El repositorio compila y publica la web solo (flujo **Publicar versión web**, en la pestaña **Actions**). Falta indicarle a GitHub que la muestre:
-
-1. En GitHub, entra al repositorio → **Settings** → **Pages** (en el menú izquierdo, sección "Code and automation").
-2. En **Build and deployment → Source** elige **Deploy from a branch**.
-3. En **Branch** elige **gh-pages** y la carpeta **/ (root)** → **Save**.
-4. Espera 1 o 2 minutos y abre el enlace de arriba.
-
-La rama `gh-pages` la crea el flujo **Publicar versión web** al terminar su primera ejecución (pestaña Actions, debe salir con ✓ verde). Si no aparece en la lista de ramas, abre ese flujo y toca **Run workflow**.
-
-Cada vez que se cambie algo en `web/`, la página se actualiza sola en unos minutos.
+Después, en Firebase, agrega el dominio nuevo en **Authentication → Configuración → Dominios autorizados** si la web muestra un error de dominio no autorizado.
 
 ### Conectar la web con tu Firebase
 
@@ -206,7 +201,7 @@ La web usa la configuración de [`web/src/config.js`](web/src/config.js), que sa
 3. Ponle de apodo `Guastaccesorio web`, deja sin marcar "Firebase Hosting" y toca **Registrar app**.
 4. Copia el bloque `firebaseConfig` que muestra (apiKey, authDomain, projectId, etc.) y reemplaza el objeto `firebaseConfig` de `web/src/config.js` por ese.
 
-Si aparece un error de **dominio no autorizado** (`auth/unauthorized-domain`), en Firebase abre **Authentication → Configuración → Dominios autorizados → Agregar dominio** y escribe `iangods1.github.io`.
+Si aparece un error de **dominio no autorizado** (`auth/unauthorized-domain`), en Firebase abre **Authentication → Configuración → Dominios autorizados → Agregar dominio** y escribe el dominio donde publicaste la web (por ejemplo `guastaccesorio.netlify.app`).
 
 ### Usarla en el teléfono
 
