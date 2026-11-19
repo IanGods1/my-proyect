@@ -1,13 +1,13 @@
 # Guastaccesorio
 
-Aplicación Android para consultar qué modelos de teléfono comparten el mismo **case** (funda) y el mismo **vidrio templado**.
+Aplicación para consultar qué modelos de teléfono comparten el mismo **case** (funda) y el mismo **vidrio templado**. Hay dos versiones que comparten los mismos datos: la **app Android** (APK) y la **versión web**, que se abre con un enlace desde cualquier teléfono (iPhone incluido) o computadora, sin instalar nada.
 
 Buscas un modelo (por ejemplo "iPhone 13") y la app te muestra, en dos pestañas, qué otros modelos usan el mismo case y cuáles el mismo vidrio.
 
-- Android 8.0 o superior
+- App Android 8.0 o superior · versión web en cualquier navegador moderno (ver [Versión web](#versión-web))
 - Acceso con contraseña: **administrador** (tú) y **trabajador** (tus empleados)
 - Datos compartidos en la nube (Firebase), con copia en cada teléfono para buscar sin internet
-- Kotlin + Jetpack Compose, modo claro y oscuro, todo en español
+- Kotlin + Jetpack Compose (Android) y JavaScript (web), modo claro y oscuro, todo en español
 
 > Antes se llamaba **CaseMatch**. La actualización conserva los datos que ya tenías (ver [Actualizar sin perder datos](#actualizar-sin-perder-datos)).
 
@@ -168,6 +168,69 @@ Copia `google-services.json` dentro de la carpeta `app/` del proyecto (junto a `
 
 ---
 
+## Versión web
+
+La misma aplicación, hecha como página web instalable (PWA). Usa **la misma base de datos de Firebase** y las **mismas contraseñas** que la app Android: lo que cargues en una lo ven la otra y los trabajadores, y un trabajador puede entrar desde Android o desde la web con la misma contraseña.
+
+- Funciones: todas las de la app (buscar, clases de vidrio, grupos, modelos, marca por grupo, importar/exportar CSV y Excel, contraseñas, roles, sesión permanente y cierre de sesión del trabajador al cambiar la contraseña).
+- Funciona sin internet para buscar: guarda una copia de los datos en el navegador. Los cambios hechos sin conexión se suben al volver internet.
+- El código está en la carpeta [`web/`](web/).
+
+### Enlace de la versión web
+
+```
+https://iangods1.github.io/my-proyect/
+```
+
+(Es `https://<tu-usuario>.github.io/<nombre-del-repositorio>/`.) Funciona cuando termine el paso siguiente.
+
+### Activarla en GitHub (una sola vez)
+
+El repositorio compila y publica la web solo (flujo **Publicar versión web**, en la pestaña **Actions**). Falta indicarle a GitHub que la muestre:
+
+1. En GitHub, entra al repositorio → **Settings** → **Pages** (en el menú izquierdo, sección "Code and automation").
+2. En **Build and deployment → Source** elige **Deploy from a branch**.
+3. En **Branch** elige **gh-pages** y la carpeta **/ (root)** → **Save**.
+4. Espera 1 o 2 minutos y abre el enlace de arriba.
+
+La rama `gh-pages` la crea el flujo **Publicar versión web** al terminar su primera ejecución (pestaña Actions, debe salir con ✓ verde). Si no aparece en la lista de ramas, abre ese flujo y toca **Run workflow**.
+
+Cada vez que se cambie algo en `web/`, la página se actualiza sola en unos minutos.
+
+### Conectar la web con tu Firebase
+
+La web usa la configuración de [`web/src/config.js`](web/src/config.js), que sale del archivo `google-services.json` de la app Android. Si al entrar aparece **"La clave de Firebase no permite usar la web"**, registra la app web en tu proyecto:
+
+1. Entra a <https://console.firebase.google.com> → tu proyecto → ⚙️ **Configuración del proyecto**.
+2. Abajo, en **Tus apps**, toca **Agregar app** y elige el ícono **Web** (`</>`).
+3. Ponle de apodo `Guastaccesorio web`, deja sin marcar "Firebase Hosting" y toca **Registrar app**.
+4. Copia el bloque `firebaseConfig` que muestra (apiKey, authDomain, projectId, etc.) y reemplaza el objeto `firebaseConfig` de `web/src/config.js` por ese.
+
+Si aparece un error de **dominio no autorizado** (`auth/unauthorized-domain`), en Firebase abre **Authentication → Configuración → Dominios autorizados → Agregar dominio** y escribe `iangods1.github.io`.
+
+### Usarla en el teléfono
+
+- Abre el enlace en el navegador (Safari en iPhone, Chrome en Android).
+- **iPhone:** toca el botón **Compartir** → **Añadir a pantalla de inicio**. Queda con su ícono, como una app.
+- **Android:** menú ⋮ → **Instalar aplicación** (o **Añadir a pantalla de inicio**).
+- La primera vez, el trabajador escribe la contraseña de trabajador con internet; después entra directo, igual que en la app.
+- Al cambiar la contraseña de trabajador, la sesión se cierra también en la web (al instante si hay internet, o la próxima vez que se abra).
+
+### Para quien programe
+
+```bash
+cd web
+npm ci
+npm test            # pruebas de la lógica (búsqueda, importación, contraseñas, sesiones...)
+npm run build       # genera web/dist (lo que se publica)
+npm run build:test  # versión con la nube simulada, para la prueba en navegador:
+NODE_PATH=$(npm root -g) node e2e/smoke.cjs [carpeta-de-capturas]   # requiere Playwright
+```
+
+La clave que se guarda en la nube para la contraseña de trabajador se calcula igual en Android (PBKDF2-HMAC-SHA256) y en la web, y hay una prueba que lo comprueba con valores calculados en Java.
+
+---
+
 ## Actualizar sin perder datos
 
 La versión nueva usa el **mismo identificador de paquete** (`com.casematch.app`), la **misma base de datos** y la **misma clave de firma** (`app/casematch.jks`) que CaseMatch. Por eso se instala **encima** de la anterior y conserva todos tus grupos y modelos.
@@ -255,6 +318,16 @@ app/src/main/java/com/casematch/app/
         ├── admin/               Grupos, importar y exportar
         ├── group/               Formulario de grupo
         └── settings/            Configuración (solo administrador)
+```
+
+```
+web/                             Versión web (PWA)
+├── src/core/                    Lógica sin dependencias: búsqueda, marcas, datos, CSV, Excel, contraseñas
+├── src/ui/                      Pantallas (acceso, buscador, resultados, modelos, administración, grupo, configuración)
+├── src/auth.js                  Contraseñas, roles, sesión permanente, bloqueo (igual que la app Android)
+├── src/backend-firebase.js      Acceso a Firebase
+├── test/                        Pruebas automáticas · e2e/ prueba completa en navegador
+└── build.mjs                    Genera la carpeta que se publica
 ```
 
 Internamente el código conserva el nombre "casematch" (paquete `com.casematch.app`, base `casematch.db`): cambiarlo haría que Android la trate como otra app y se perderían los datos.

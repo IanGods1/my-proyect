@@ -11,3 +11,8 @@
 *.apk
 *.keystore
 
+
+# Versión web
+web/node_modules/
+web/dist/
+web/dist-test/

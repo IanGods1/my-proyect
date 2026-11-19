@@ -1,0 +1,19 @@
+{
+  "name": "guastaccesorio-web",
+  "version": "2.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Versión web (PWA) de Guastaccesorio",
+  "scripts": {
+    "test": "node --test \"test/*.test.js\"",
+    "build": "node build.mjs",
+    "build:test": "node build.mjs --test"
+  },
+  "dependencies": {
+    "fflate": "0.8.2",
+    "firebase": "11.10.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.5"
+  }
+}

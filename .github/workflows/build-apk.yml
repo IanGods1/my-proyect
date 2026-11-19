@@ -2,6 +2,10 @@ name: Compilar APK
 
 on:
   push:
+    # Los cambios solo de la versión web no necesitan compilar el APK.
+    paths-ignore:
+      - "web/**"
+      - ".github/workflows/web.yml"
   workflow_dispatch:
 
 jobs:
