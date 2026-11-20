@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+    <meta name="theme-color" content="#0e0f13">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Mando LG">
+    <title>Mando LG</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="icono.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icono-180.png">
+    <link rel="stylesheet" href="app.css">
+</head>
+<body>
+    <header class="barra">
+        <div class="tele">
+            <span class="punto" id="punto"></span>
+            <div>
+                <div class="tele-nombre" id="teleNombre">Mando LG</div>
+                <div class="tele-estado" id="teleEstado">Cargando…</div>
+            </div>
+        </div>
+        <button class="icono-btn" id="btnAjustes" aria-label="Ajustes">
+            <svg viewBox="0 0 24 24"><path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7Zm7.4-2.5.1-1-.1-1 2.1-1.6-2-3.5-2.5 1a7.6 7.6 0 0 0-1.7-1L15 3h-4l-.4 2.6c-.6.3-1.2.6-1.7 1l-2.5-1-2 3.5L6.5 11l-.1 1 .1 1-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.7 1.7 1L11 21h4l.4-2.6c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.5-2.2-1.9Z"/></svg>
+        </button>
+    </header>
+
+    <!-- Pantalla de conexión -->
+    <section class="panel" id="vistaConexion" hidden>
+        <h1>Conecta tu tele LG</h1>
+        <ol class="pasos">
+            <li>Enciende la tele y conéctala a la <b>misma WiFi</b> que este móvil.</li>
+            <li>Pulsa <b>Buscar teles</b> o escribe su IP.</li>
+            <li>La primera vez, en la tele aparecerá un aviso: pulsa <b>Aceptar</b>.</li>
+        </ol>
+
+        <button class="btn primario ancho" id="btnBuscar">🔍 Buscar teles</button>
+        <ul class="lista" id="listaTeles"></ul>
+
+        <label class="campo">
+            <span>…o escribe la IP de la tele</span>
+            <div class="fila">
+                <input id="inputIp" inputmode="decimal" placeholder="Ej: 192.168.1.50" autocomplete="off">
+                <button class="btn primario" id="btnConectar">Conectar</button>
+            </div>
+        </label>
+        <p class="ayuda">La IP está en la tele: <b>Configuración → General → Red → Wi-Fi → Ajustes avanzados</b>.</p>
+
+        <div class="aviso" id="avisoAceptar" hidden>
+            📺 <b>Mira la tele</b> y pulsa <b>Aceptar</b> en el mensaje que aparece.
+        </div>
+        <div class="aviso error" id="avisoError" hidden></div>
+    </section>
+
+    <!-- Mando -->
+    <main id="vistaMando" hidden>
+        <div class="banda" id="bandaDesconectada" hidden>
+            <span id="bandaTexto">La tele no está conectada.</span>
+            <div class="fila">
+                <button class="btn pequeno primario" data-accion="encender">Encender</button>
+                <button class="btn pequeno" id="btnBandaCambiar">Cambiar de tele</button>
+            </div>
+        </div>
+        <div class="pestanas-contenido">
+            <!-- Mando principal -->
+            <section class="pestana" data-pestana="mando">
+                <div class="fila-arriba">
+                    <button class="redondo rojo" data-accion="apagar" aria-label="Apagar">
+                        <svg viewBox="0 0 24 24"><path d="M12 3v9M6.3 6.3a8 8 0 1 0 11.4 0"/></svg>
+                    </button>
+                    <button class="redondo" data-accion="encender" aria-label="Encender">ON</button>
+                    <button class="redondo" data-abrir="entradas" aria-label="Entrada">
+                        <svg viewBox="0 0 24 24"><path d="M4 6h16v10H4zM9 20h6M12 16v4"/></svg>
+                    </button>
+                    <button class="redondo" data-volumen="silencio" id="btnSilencio" aria-label="Silencio">
+                        <svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4zM17 9l4 6M21 9l-4 6"/></svg>
+                    </button>
+                </div>
+
+                <div class="cruceta">
+                    <button class="flecha arriba" data-boton="UP" data-repetir aria-label="Arriba">▲</button>
+                    <button class="flecha izquierda" data-boton="LEFT" data-repetir aria-label="Izquierda">◀</button>
+                    <button class="ok" data-boton="ENTER">OK</button>
+                    <button class="flecha derecha" data-boton="RIGHT" data-repetir aria-label="Derecha">▶</button>
+                    <button class="flecha abajo" data-boton="DOWN" data-repetir aria-label="Abajo">▼</button>
+                </div>
+
+                <div class="fila-tres">
+                    <button class="btn" data-boton="BACK">↩︎ Atrás</button>
+                    <button class="btn" data-boton="HOME">⌂ Inicio</button>
+                    <button class="btn" data-boton="QMENU">⚙︎ Ajustes</button>
+                </div>
+
+                <div class="balancines">
+                    <div class="balancin">
+                        <button data-volumen="subir" data-repetir aria-label="Subir volumen">＋</button>
+                        <span><small>VOL</small><b id="nivelVolumen">–</b></span>
+                        <button data-volumen="bajar" data-repetir aria-label="Bajar volumen">－</button>
+                    </div>
+                    <div class="centro-balancines">
+                        <button class="btn pequeno" data-boton="INFO">Info</button>
+                        <button class="btn pequeno" data-boton="GUIDE">Guía</button>
+                        <button class="btn pequeno" data-boton="EXIT">Salir</button>
+                    </div>
+                    <div class="balancin">
+                        <button data-canal="subir" data-repetir aria-label="Canal siguiente">⌃</button>
+                        <span><small>CANAL</small><b>CH</b></span>
+                        <button data-canal="bajar" data-repetir aria-label="Canal anterior">⌄</button>
+                    </div>
+                </div>
+
+                <div class="fila-reproduccion">
+                    <button data-boton="REWIND" aria-label="Retroceder">⏪</button>
+                    <button data-boton="PLAY" aria-label="Reproducir">▶</button>
+                    <button data-boton="PAUSE" aria-label="Pausa">⏸</button>
+                    <button data-boton="STOP" aria-label="Detener">⏹</button>
+                    <button data-boton="FASTFORWARD" aria-label="Avanzar">⏩</button>
+                </div>
+
+                <div class="colores">
+                    <button class="c-rojo" data-boton="RED" aria-label="Rojo"></button>
+                    <button class="c-verde" data-boton="GREEN" aria-label="Verde"></button>
+                    <button class="c-amarillo" data-boton="YELLOW" aria-label="Amarillo"></button>
+                    <button class="c-azul" data-boton="BLUE" aria-label="Azul"></button>
+                </div>
+            </section>
+
+            <!-- Touchpad -->
+            <section class="pestana" data-pestana="touchpad" hidden>
+                <div class="touchpad" id="touchpad">
+                    <span>Desliza para mover el puntero<br>Toca para hacer clic</span>
+                </div>
+                <div class="fila-tres">
+                    <button class="btn" data-boton="BACK">↩︎ Atrás</button>
+                    <button class="btn" data-boton="HOME">⌂ Inicio</button>
+                    <button class="btn" id="btnScroll">↕ Desplazar: no</button>
+                </div>
+            </section>
+
+            <!-- Apps -->
+            <section class="pestana" data-pestana="apps" hidden>
+                <div class="cabecera-seccion">
+                    <h2>Apps de la tele</h2>
+                    <button class="btn pequeno" id="btnRecargarApps">↻</button>
+                </div>
+                <div class="rejilla-apps" id="rejillaApps"></div>
+            </section>
+
+            <!-- Teclado -->
+            <section class="pestana" data-pestana="teclado" hidden>
+                <h2>Escribir en la tele</h2>
+                <p class="ayuda">Abre un buscador en la tele (por ejemplo en YouTube o Netflix) y escribe aquí.</p>
+                <textarea id="textoTele" rows="3" placeholder="Escribe aquí…"></textarea>
+                <div class="fila-tres">
+                    <button class="btn" id="btnBorrar">⌫ Borrar</button>
+                    <button class="btn primario" id="btnEnviarTexto">Enviar</button>
+                    <button class="btn" id="btnEnter">↵ Buscar</button>
+                </div>
+                <h2>Números</h2>
+                <div class="numeros">
+                    <button data-boton="1">1</button><button data-boton="2">2</button><button data-boton="3">3</button>
+                    <button data-boton="4">4</button><button data-boton="5">5</button><button data-boton="6">6</button>
+                    <button data-boton="7">7</button><button data-boton="8">8</button><button data-boton="9">9</button>
+                    <button data-boton="DASH">–</button><button data-boton="0">0</button><button data-boton="ENTER">OK</button>
+                </div>
+            </section>
+        </div>
+
+        <nav class="pestanas">
+            <button data-ir="mando" class="activa"><span>🎮</span>Mando</button>
+            <button data-ir="touchpad"><span>🖱️</span>Puntero</button>
+            <button data-ir="apps"><span>▦</span>Apps</button>
+            <button data-ir="teclado"><span>⌨️</span>Teclado</button>
+        </nav>
+    </main>
+
+    <!-- Hoja de entradas -->
+    <div class="hoja" id="hojaEntradas" hidden>
+        <div class="hoja-caja">
+            <div class="cabecera-seccion">
+                <h2>Elegir entrada</h2>
+                <button class="icono-btn" data-cerrar aria-label="Cerrar">✕</button>
+            </div>
+            <ul class="lista" id="listaEntradas"></ul>
+        </div>
+    </div>
+
+    <!-- Hoja de ajustes -->
+    <div class="hoja" id="hojaAjustes" hidden>
+        <div class="hoja-caja">
+            <div class="cabecera-seccion">
+                <h2>Ajustes</h2>
+                <button class="icono-btn" data-cerrar aria-label="Cerrar">✕</button>
+            </div>
+            <p class="ayuda" id="infoTele"></p>
+            <label class="campo">
+                <span>Enviar un mensaje a la pantalla de la tele</span>
+                <div class="fila">
+                    <input id="inputAviso" maxlength="200" placeholder="¡La cena está lista! 🍝">
+                    <button class="btn primario" id="btnAviso">Enviar</button>
+                </div>
+            </label>
+            <button class="btn ancho" id="btnCambiarTele">Cambiar de tele</button>
+            <p class="ayuda">Para poder <b>encender</b> la tele desde el móvil, activa en la tele:
+                <b>Configuración → General → Dispositivos → TV Management → Encender con Wi-Fi</b>
+                (en modelos más antiguos: <b>Red → LG Connect Apps</b> y <b>Encendido rápido+</b>).</p>
+        </div>
+    </div>
+
+    <div class="toast" id="toast" hidden></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

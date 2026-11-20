@@ -1,0 +1,17 @@
+{
+  "name": "control-remoto-lg",
+  "version": "1.0.0",
+  "description": "Control remoto web para televisores LG webOS, usable desde el móvil.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "lgtv2": "^2.1.0"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,16 @@
+{
+  "name": "Mando LG",
+  "short_name": "Mando LG",
+  "description": "Control remoto para teles LG webOS",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e0f13",
+  "theme_color": "#0e0f13",
+  "lang": "es",
+  "icons": [
+    {"src": "icono-180.png", "sizes": "180x180", "type": "image/png"},
+    {"src": "icono.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}
+  ]
+}
