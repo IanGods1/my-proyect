@@ -185,6 +185,10 @@ function productoPorNombre(nombre, excluirId) {
  */
 function preguntarRepetido(existente, venta, costo) {
   const fila = (txt, antes, ahora) => `<div class="detalle-fila"><span>${txt}</span><span>${q(antes)} → <strong>${q(ahora)}</strong></span></div>`;
+  // Los botones muestran el precio de venta (o el costo, si solo se cambia el costo)
+  const hayVenta = venta !== null && venta !== undefined;
+  const antes = hayVenta ? existente.precioVenta : existente.precioCosto;
+  const ahora = hayVenta ? venta : costo;
   return modal({
     titulo: 'Este producto ya existe',
     html: `<p>Ya está registrado <strong>${esc(existente.nombre)}</strong>${existente.codigo ? ` (código ${esc(existente.codigo)})` : ''}.</p>
@@ -194,8 +198,8 @@ function preguntarRepetido(existente, venta, costo) {
       </div>
       <button type="button" class="btn-enlace repetido-nuevo" data-op="nuevo">No es el mismo: guardarlo como nuevo</button>`,
     botones: [
-      { texto: 'Dejarlo así', clase: 'btn-secundario', valor: 'dejar' },
-      { texto: 'Actualizar precio', clase: 'btn-primario', valor: 'actualizar' },
+      { texto: `Mantener ${q(antes).replace(" ", "\u00a0")}`, clase: 'btn-secundario', valor: 'dejar' },
+      { texto: `Cambiar a ${q(ahora).replace(" ", "\u00a0")}`, clase: 'btn-primario', valor: 'actualizar' },
     ],
     alAbrir: (cerrar) => { $('#modal-cuerpo [data-op=nuevo]').addEventListener('click', () => cerrar('nuevo')); },
   });
