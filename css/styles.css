@@ -916,3 +916,9 @@ html[data-tema="grafito"] {
 .precio-bloque { display: flex; flex-direction: column; line-height: 1.1; }
 .precio-bloque small { font-size: 0.72rem; font-weight: 700; color: var(--texto-suave); text-transform: uppercase; letter-spacing: 0.5px; }
 .item-costo { font-size: 1.1rem; font-weight: 800; color: var(--amarillo); white-space: nowrap; }
+
+/* Aviso de producto repetido */
+.repetido-precios { padding: 8px 14px; gap: 0; margin: 4px 0; }
+.repetido-precios .detalle-fila { padding: 8px 0; font-size: 0.98rem; }
+.repetido-nuevo { display: flex; margin: 6px auto 0; font-size: 0.9rem; }
+.repetido-precios .detalle-fila span:last-child { white-space: nowrap; }
