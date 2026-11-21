@@ -910,3 +910,9 @@ html[data-tema="grafito"] {
 }
 .logo-tienda.logo-grande { width: 96px; height: 96px; display: block; margin: 0 auto; }
 .acceso-logo .logo-tienda { filter: drop-shadow(0 10px 30px rgba(var(--acento-rgb), 0.55)); }
+
+/* Lista de productos: precio de venta y de costo a la par */
+.item-precios { display: flex; align-items: flex-end; gap: 18px; margin-top: 4px; flex-wrap: wrap; }
+.precio-bloque { display: flex; flex-direction: column; line-height: 1.1; }
+.precio-bloque small { font-size: 0.72rem; font-weight: 700; color: var(--texto-suave); text-transform: uppercase; letter-spacing: 0.5px; }
+.item-costo { font-size: 1.1rem; font-weight: 800; color: var(--amarillo); white-space: nowrap; }
