@@ -927,7 +927,10 @@ function renderListaProductos() {
       <div class="item-info" data-accion="ver" data-id="${p.id}">
         <div class="item-nombre">${esc(p.nombre)}</div>
         <div class="item-sub"><span class="etiqueta-cat">${esc(nombreCategoria(p.categoriaId))}</span></div>
-        <div class="item-precio">${q(p.precioVenta)}</div>
+        <div class="item-precios">
+          <div class="precio-bloque"><small>Venta</small><span class="item-precio">${q(p.precioVenta)}</span></div>
+          <div class="precio-bloque"><small>Costo</small><span class="item-costo">${typeof p.precioCosto === 'number' ? q(p.precioCosto) : '—'}</span></div>
+        </div>
       </div>${acciones(p)}
     </li>`).join('');
 }
