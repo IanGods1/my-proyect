@@ -169,6 +169,50 @@ function productoPorCodigo(codigo, excluirId) {
   return datos.productos.find((p) => p.id !== excluirId && variantes.has(p.codigo)) || null;
 }
 
+/** Nombre para comparar: sin mayúsculas, tildes, espacios ni signos ("Coca-Cola 600 ml" = "coca cola 600ml"). */
+const claveNombre = (nombre) => normalizar(nombre).replace(/[^a-z0-9ñ]/g, '');
+
+/** Producto ya registrado con el mismo nombre (en la sucursal actual). */
+function productoPorNombre(nombre, excluirId) {
+  const k = claveNombre(nombre);
+  if (!k) return null;
+  return datos.productos.find((p) => p.id !== excluirId && claveNombre(p.nombre) === k) || null;
+}
+
+/**
+ * Avisa que el producto ya existe y deja elegir:
+ * 'actualizar' (cambiar sus precios) · 'dejar' (no guardar nada) · 'nuevo' (registrar otro igual).
+ */
+function preguntarRepetido(existente, venta, costo) {
+  const fila = (txt, antes, ahora) => `<div class="detalle-fila"><span>${txt}</span><span>${q(antes)} → <strong>${q(ahora)}</strong></span></div>`;
+  return modal({
+    titulo: 'Este producto ya existe',
+    html: `<p>Ya está registrado <strong>${esc(existente.nombre)}</strong>${existente.codigo ? ` (código ${esc(existente.codigo)})` : ''}.</p>
+      <div class="tarjeta repetido-precios">
+        ${venta !== null && venta !== undefined ? fila('Venta', existente.precioVenta, venta) : ''}
+        ${costo !== null && costo !== undefined ? fila('Costo', existente.precioCosto, costo) : ''}
+      </div>
+      <button type="button" class="btn-enlace repetido-nuevo" data-op="nuevo">No es el mismo: guardarlo como nuevo</button>`,
+    botones: [
+      { texto: 'Dejarlo así', clase: 'btn-secundario', valor: 'dejar' },
+      { texto: 'Actualizar precio', clase: 'btn-primario', valor: 'actualizar' },
+    ],
+    alAbrir: (cerrar) => { $('#modal-cuerpo [data-op=nuevo]').addEventListener('click', () => cerrar('nuevo')); },
+  });
+}
+
+/** Cambia los precios del producto que ya existía (y le pone código si no tenía). */
+function actualizarPreciosDe(existente, { venta, costo, codigo, lugar }) {
+  const cambios = { actualizado: new Date().toISOString(), actualizadoPor: sesion.nombre };
+  if (venta !== null && venta !== undefined) cambios.precioVenta = venta;
+  if (costo !== null && costo !== undefined) cambios.precioCosto = costo;
+  if (codigo && !existente.codigo) cambios.codigo = codigo;
+  if (lugar) cambios.lugarCompra = lugar;
+  ponerLocal(datos.productos, { id: existente.id, ...cambios });
+  enNube(fb.updateDoc(refDoc('productos', existente.id), cambios));
+  aviso(`Precio actualizado: ${existente.nombre}`);
+}
+
 function ordenarPorNombre(lista) {
   return lista.sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es', { sensitivity: 'base' }));
 }
@@ -1110,6 +1154,19 @@ async function guardarFormulario(e) {
   const repetido = productoPorCodigo(codigo, idActual);
   if (repetido) return error(`Ese código ya está registrado en "${repetido.nombre}".`, '#f-codigo');
 
+  // Producto nuevo con el mismo nombre que uno que ya existe
+  const mismoNombre = idActual ? null : productoPorNombre(nombre);
+  if (mismoNombre) {
+    const op = await preguntarRepetido(mismoNombre, venta, costo);
+    if (!op) return;
+    if (op === 'dejar') { navegar({ vista: 'detalle', id: mismoNombre.id }, 'replace'); return; }
+    if (op === 'actualizar') {
+      actualizarPreciosDe(mismoNombre, { venta, costo, codigo, lugar });
+      navegar({ vista: 'detalle', id: mismoNombre.id }, 'replace');
+      return;
+    }
+  }
+
   if (costo !== null && costo > venta) {
     const seguir = await confirmar('Revise los precios', `El precio de costo (${q(costo)}) es mayor que el de venta (${q(venta)}). Perdería dinero con este producto. ¿Guardar de todos modos?`, 'Guardar');
     if (!seguir) return;
@@ -1665,7 +1722,8 @@ function armarFactura(r) {
     lineas: r.lineas.map((l) => ({
       descripcion: l.descripcion || '',
       incluir: true,
-      productoId: l.productoId && productoPorId(l.productoId) ? l.productoId : '',
+      // Si la IA no lo reconoció pero ya hay uno con el mismo nombre, se usa ese (se actualiza su costo)
+      productoId: (l.productoId && productoPorId(l.productoId) ? l.productoId : '') || productoPorNombre(l.nombre)?.id || '',
       nombre: l.nombre || l.descripcion || '',
       costo: precioTexto(l.costoUnitario),
       venta: precioTexto(ventaSugerida(l.costoUnitario)),
@@ -2048,6 +2106,7 @@ function agregarAlInventario(datosLinea, cantidad) {
   if (i >= 0) {
     const l = inventario.lineas[i];
     l.cantidad = Math.round((l.cantidad + cantidad) * 1000) / 1000;
+    l.costo = datosLinea.costo; // por si se actualizó el precio del producto
     aviso(`Ya estaba: ahora son ${textoCantidad(l.cantidad)}`);
   } else {
     inventario.lineas.push({ ...datosLinea, cantidad });
@@ -2169,6 +2228,23 @@ async function productoNuevoEnInventario(codigo = '') {
     alAbrir: () => { enterEnviaModal(); $('#inv-n-nombre').focus(); },
   });
   if (!r) return;
+  // Ya hay un producto con ese nombre: usar ese en vez de repetirlo
+  const mismoNombre = productoPorNombre(r.nombre);
+  if (mismoNombre) {
+    let op = 'dejar';
+    if (admin) {
+      op = await preguntarRepetido(mismoNombre, null, r.costo);
+      if (!op) return;
+    } else {
+      aviso(`Ya existe "${mismoNombre.nombre}": se usó ese`);
+    }
+    if (op !== 'nuevo') {
+      if (op === 'actualizar') actualizarPreciosDe(mismoNombre, { costo: r.costo, codigo });
+      const costo = op === 'actualizar' ? r.costo : (typeof mismoNombre.precioCosto === 'number' ? mismoNombre.precioCosto : r.costo);
+      agregarAlInventario({ productoId: mismoNombre.id, codigo: mismoNombre.codigo || codigo, nombre: mismoNombre.nombre, costo, manual: false }, r.cantidad);
+      return;
+    }
+  }
   if (admin) {
     const ahora = new Date().toISOString();
     const ref = fb.doc(refColeccion('productos'));
