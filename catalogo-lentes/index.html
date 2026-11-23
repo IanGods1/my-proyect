@@ -5,88 +5,497 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Catálogo de Lentes</title>
 <style>
-:root{--bg:#f6f6f4;--card:#fff;--ink:#1c1c1c;--muted:#6b6b6b;--acc:#d64545}
+:root{--bg:#f6f6f4;--card:#fff;--ink:#1c1c1c;--muted:#6b6b6b;--acc:#128c4a;--line:#e3e3e0}
 *{box-sizing:border-box}
-body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
-header{position:sticky;top:0;z-index:5;background:rgba(246,246,244,.95);backdrop-filter:blur(8px);padding:14px 16px 10px;border-bottom:1px solid #e3e3e0}
-h1{margin:0;font-size:1.35rem}
-.sub{color:var(--muted);font-size:.9rem;margin-top:2px}
-.bar{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center}
-.bar button{border:1px solid #d5d5d2;background:#fff;border-radius:999px;padding:7px 14px;font-size:.9rem;cursor:pointer}
-.bar button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
-.bar input{flex:1;min-width:120px;border:1px solid #d5d5d2;border-radius:999px;padding:7px 14px;font-size:.9rem}
-main{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;padding:12px}
-.item{position:relative;background:var(--card);border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08);cursor:pointer;aspect-ratio:3/4}
-.item img{width:100%;height:100%;object-fit:cover;display:block}
-.num{position:absolute;left:6px;top:6px;background:rgba(0,0,0,.65);color:#fff;font-size:.75rem;font-weight:600;padding:2px 7px;border-radius:999px}
-.fav{position:absolute;right:4px;top:2px;font-size:1.4rem;background:none;border:0;cursor:pointer;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6));color:#fff;line-height:1;padding:4px}
-.fav.on{color:var(--acc)}
-.empty{grid-column:1/-1;text-align:center;color:var(--muted);padding:40px}
-#lb{position:fixed;inset:0;background:#000;display:none;z-index:10;flex-direction:column}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);padding-bottom:90px}
+button,input,textarea{font:inherit}
+header{position:sticky;top:0;z-index:5;background:rgba(246,246,244,.96);backdrop-filter:blur(8px);padding:12px 14px 10px;border-bottom:1px solid var(--line)}
+.fila{display:flex;align-items:center;justify-content:space-between;gap:8px}
+h1{margin:0;font-size:1.25rem}
+.sub{color:var(--muted);font-size:.85rem;margin-top:2px}
+.iconos button{border:0;background:#fff;border:1px solid #d5d5d2;border-radius:999px;padding:6px 11px;cursor:pointer;font-size:.9rem}
+.bar{display:flex;gap:8px;margin-top:10px;align-items:center}
+.chip{border:1px solid #d5d5d2;background:#fff;border-radius:999px;padding:7px 13px;font-size:.9rem;cursor:pointer;white-space:nowrap}
+.chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.bar input{flex:1;min-width:80px;border:1px solid #d5d5d2;border-radius:999px;padding:7px 13px;font-size:.9rem}
+main{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px;padding:12px}
+.item{background:var(--card);border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08);display:flex;flex-direction:column}
+.item.sel{outline:3px solid var(--acc)}
+.foto{position:relative;aspect-ratio:3/4;cursor:pointer;background:#eee}
+.foto img{width:100%;height:100%;object-fit:cover;display:block}
+.num{position:absolute;left:6px;top:6px;background:rgba(0,0,0,.7);color:#fff;font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:999px}
+.nota-ico{position:absolute;right:6px;top:6px;background:rgba(0,0,0,.7);color:#fff;font-size:.75rem;padding:2px 6px;border-radius:999px}
+.paso{display:flex;align-items:center;justify-content:space-between;padding:6px}
+.paso button{width:40px;height:36px;border-radius:8px;border:1px solid #d5d5d2;background:#fff;font-size:1.3rem;cursor:pointer;line-height:1}
+.paso button.mas{background:var(--acc);color:#fff;border-color:var(--acc)}
+.paso input{width:52px;text-align:center;font-size:1.05rem;font-weight:700;border:0;background:none;-moz-appearance:textfield}
+.paso input::-webkit-inner-spin-button{-webkit-appearance:none}
+.vacio{grid-column:1/-1;text-align:center;color:var(--muted);padding:40px 16px}
+#carrito{position:fixed;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));z-index:6;display:none;align-items:center;justify-content:space-between;gap:10px;background:var(--acc);color:#fff;border-radius:14px;padding:12px 14px;box-shadow:0 4px 16px rgba(0,0,0,.25);cursor:pointer;border:0;font-size:1rem}
+#carrito.ver{display:flex}
+#carrito b{font-size:1.05rem}
+/* paneles */
+.panel{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.45);display:none;align-items:flex-end;justify-content:center}
+.panel.open{display:flex}
+.hoja{background:#fff;width:100%;max-width:640px;max-height:92vh;overflow:auto;border-radius:16px 16px 0 0;padding:16px 16px calc(20px + env(safe-area-inset-bottom))}
+.hoja h2{margin:0 0 4px;font-size:1.2rem}
+.cerrar{float:right;border:0;background:#eee;border-radius:999px;width:34px;height:34px;font-size:1.1rem;cursor:pointer}
+.hoja label{display:block;font-size:.85rem;color:var(--muted);margin:12px 0 4px}
+.hoja input[type=text],.hoja input[type=tel],.hoja input[type=password],.hoja textarea{width:100%;border:1px solid #d5d5d2;border-radius:10px;padding:10px 12px;font-size:1rem}
+.hoja textarea{min-height:60px;resize:vertical}
+.btn{display:block;width:100%;border:0;border-radius:12px;padding:13px;font-size:1rem;font-weight:600;cursor:pointer;margin-top:10px}
+.btn.verde{background:var(--acc);color:#fff}
+.btn.gris{background:#eee;color:var(--ink)}
+.btn.rojo{background:#fff;color:#c0392b;border:1px solid #e3b5b0}
+.btn:disabled{opacity:.5}
+.linea{display:flex;gap:10px;align-items:flex-start;border-bottom:1px solid var(--line);padding:10px 0}
+.linea img{width:64px;height:80px;object-fit:cover;border-radius:8px;cursor:pointer}
+.linea .der{flex:1;min-width:0}
+.linea .paso{padding:4px 0;justify-content:flex-start;gap:6px}
+.linea input.nota{width:100%;border:1px solid #d5d5d2;border-radius:8px;padding:7px 9px;font-size:.9rem}
+.resumen{background:#f2f8f4;border-radius:10px;padding:10px 12px;margin:10px 0;font-weight:600}
+.aviso{font-size:.85rem;color:var(--muted);margin-top:8px}
+.estado{margin-top:10px;padding:10px 12px;border-radius:10px;background:#f4f4f2;font-size:.95rem;display:none}
+.estado.ver{display:block}
+.ayuda ol{padding-left:20px;margin:6px 0}
+.ayuda li{margin:6px 0}
+.ayuda h3{margin:16px 0 4px;font-size:1rem}
+details{margin-top:10px}
+summary{cursor:pointer;color:var(--acc);font-weight:600}
+/* foto grande */
+#lb{position:fixed;inset:0;background:#000;display:none;z-index:30;flex-direction:column}
 #lb.open{display:flex}
 #lb .top{display:flex;justify-content:space-between;align-items:center;color:#fff;padding:12px 14px}
 #lb .top button{background:none;border:0;color:#fff;font-size:1.6rem;cursor:pointer}
-#lb .top .fav{position:static;filter:none}#lb .top .fav.on{color:var(--acc)}
-#lb .stage{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:pan-y}
+#lb .stage{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:pan-y;min-height:0}
 #lb .stage img{max-width:100%;max-height:100%;object-fit:contain}
-#lb .nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.15);border:0;color:#fff;font-size:2rem;width:48px;height:64px;cursor:pointer;border-radius:8px}
+#lb .nav{position:absolute;top:45%;transform:translateY(-50%);background:rgba(255,255,255,.15);border:0;color:#fff;font-size:2rem;width:46px;height:64px;cursor:pointer;border-radius:8px}
 #lb .prev{left:8px}#lb .next{right:8px}
-@media print{header .bar,.fav{display:none}header{position:static}main{grid-template-columns:repeat(3,1fr)}.item{break-inside:avoid}}
+#lb .abajo{background:#111;padding:10px 14px calc(12px + env(safe-area-inset-bottom));color:#fff}
+#lb .abajo .paso{justify-content:center;gap:14px}
+#lb .abajo .paso input{color:#fff;font-size:1.4rem}
+#lb .abajo .paso button{background:#222;color:#fff;border-color:#444;width:52px;height:44px}
+#lb .abajo .paso button.mas{background:var(--acc);border-color:var(--acc)}
+#lb .abajo input.nota{width:100%;margin-top:6px;border-radius:8px;border:1px solid #444;background:#222;color:#fff;padding:9px 11px}
 </style>
 </head>
 <body>
 <header>
-  <h1>🕶️ Catálogo de Lentes</h1>
-  <div class="sub"><span id="total"></span> fotos · Toca una foto para verla en grande · ♥ para marcar las que te gusten</div>
+  <div class="fila">
+    <div>
+      <h1>🕶️ <span id="titulo">Catálogo</span></h1>
+      <div class="sub" id="sub">Cargando…</div>
+    </div>
+    <div class="iconos">
+      <button id="bAyuda" aria-label="Cómo usar">❓</button>
+      <button id="bAjustes" aria-label="Actualizar catálogo">🔄</button>
+    </div>
+  </div>
   <div class="bar">
-    <button id="bTodos" class="on">Todas</button>
-    <button id="bFavs">♥ Marcadas (<span id="nf">0</span>)</button>
+    <button class="chip on" id="bTodos">Todas</button>
+    <button class="chip" id="bSel">🛒 Elegidas</button>
     <input id="ir" type="number" inputmode="numeric" placeholder="Ir al nº…">
   </div>
 </header>
+
 <main id="grid"></main>
+
+<button id="carrito"><span>🛒 <b id="cTxt"></b></span><span>Ver y enviar ›</span></button>
+
+<!-- Pedido -->
+<div class="panel" id="pPedido"><div class="hoja">
+  <button class="cerrar" data-cerrar>✕</button>
+  <h2>🛒 Mi pedido</h2>
+  <div class="resumen" id="pResumen"></div>
+  <div id="pLista"></div>
+  <label for="wa">WhatsApp del proveedor (con código de país, ej. 50499998888)</label>
+  <input type="tel" id="wa" placeholder="50499998888">
+  <label for="saludo">Mensaje al inicio</label>
+  <textarea id="saludo"></textarea>
+  <button class="btn verde" id="enviarFotos">📸 Enviar con fotos por WhatsApp</button>
+  <div class="aviso" id="avisoFotos">Se abre el menú “Compartir” del teléfono: elija <b>WhatsApp</b> y luego al proveedor. Cada foto lleva escrito abajo el número, la cantidad y la nota.</div>
+  <button class="btn gris" id="enviarTexto">💬 Enviar solo la lista (sin fotos)</button>
+  <button class="btn rojo" id="vaciar">🗑 Vaciar pedido</button>
+</div></div>
+
+<!-- Ayuda -->
+<div class="panel" id="pAyuda"><div class="hoja ayuda">
+  <button class="cerrar" data-cerrar>✕</button>
+  <h2>❓ Cómo usar el catálogo</h2>
+  <h3>1. Elegir los lentes</h3>
+  <ol>
+    <li>Busque el lente que le gusta. Cada foto tiene su <b>número</b> arriba a la izquierda.</li>
+    <li>Toque <b>+</b> debajo de la foto para poner cuántos quiere (o escriba el número). Con <b>−</b> resta.</li>
+    <li>Toque la foto para verla en grande. Ahí también puede poner la cantidad y una <b>nota</b> (ej. “solo los negros”).</li>
+    <li>Con <b>🛒 Elegidas</b> ve solo los que ya escogió.</li>
+  </ol>
+  <h3>2. Enviar el pedido al proveedor</h3>
+  <ol>
+    <li>Toque la barra verde <b>🛒 Ver y enviar</b> de abajo.</li>
+    <li>Revise cantidades y notas. Escriba el WhatsApp del proveedor (solo la primera vez; queda guardado).</li>
+    <li><b>📸 Enviar con fotos:</b> se abre “Compartir”; elija WhatsApp y al proveedor. Le llegan las fotos con la cantidad escrita abajo de cada una, más la lista completa.</li>
+    <li>Si eligió más de 30 lentes, se mandan en grupos de 30: después del primero toque el botón otra vez para el siguiente grupo.</li>
+    <li><b>💬 Solo la lista:</b> abre el chat del proveedor con la lista escrita (sin fotos).</li>
+  </ol>
+  <h3>3. Cuando el proveedor mande un catálogo nuevo</h3>
+  <ol>
+    <li>Copie el link del álbum de Google Fotos que le mandó.</li>
+    <li>Toque <b>🔄</b> arriba, pegue el link y toque <b>Actualizar catálogo</b>.</li>
+    <li>En 2 a 5 minutos la página cambia sola: quedan solo las fotos nuevas y se borran las anteriores.</li>
+  </ol>
+  <p class="aviso">Lo que elige se guarda en este teléfono. Si se actualiza el catálogo, el pedido se vacía porque las fotos cambian.</p>
+</div></div>
+
+<!-- Actualizar -->
+<div class="panel" id="pAjustes"><div class="hoja">
+  <button class="cerrar" data-cerrar>✕</button>
+  <h2>🔄 Actualizar catálogo</h2>
+  <div class="aviso" id="origen"></div>
+  <label for="nuevoLink">Link del álbum nuevo de Google Fotos</label>
+  <input type="text" id="nuevoLink" placeholder="https://photos.app.goo.gl/…" autocomplete="off">
+  <button class="btn verde" id="actualizar">Actualizar catálogo</button>
+  <div class="estado" id="estado"></div>
+  <details id="dClave">
+    <summary>🔑 Clave de GitHub (solo la primera vez)</summary>
+    <p class="aviso">Para que este botón funcione, el teléfono necesita una clave de GitHub. Se guarda solo en este teléfono.</p>
+    <ol class="aviso">
+      <li>En github.com entre a <b>Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token</b>.</li>
+      <li>En <b>Repository access</b> elija “Only select repositories” → <b>my-proyect</b>.</li>
+      <li>En <b>Permissions</b> → <b>Actions</b> → “Read and write”.</li>
+      <li>Genere la clave, cópiela y péguela aquí.</li>
+    </ol>
+    <input type="password" id="clave" placeholder="github_pat_…" autocomplete="off">
+    <button class="btn gris" id="guardarClave">Guardar clave</button>
+  </details>
+  <p class="aviso">Sin clave también se puede: abra <a id="linkGithub" target="_blank" rel="noopener">GitHub → Actualizar catálogo</a>, toque <b>Run workflow</b>, pegue el link y confirme.</p>
+</div></div>
+
+<!-- Foto grande -->
 <div id="lb">
-  <div class="top"><span id="lbn"></span><span><button class="fav" id="lbfav">♥</button> <button id="cerrar" aria-label="Cerrar">✕</button></span></div>
+  <div class="top"><span id="lbn"></span><button id="lbCerrar" aria-label="Cerrar">✕</button></div>
   <div class="stage" id="stage"><img id="lbimg" alt=""></div>
   <button class="nav prev" id="prev" aria-label="Anterior">‹</button>
   <button class="nav next" id="next" aria-label="Siguiente">›</button>
+  <div class="abajo">
+    <div class="paso"><button data-d="-1">−</button><input id="lbCant" type="number" inputmode="numeric" min="0" value="0"><button class="mas" data-d="1">+</button></div>
+    <input class="nota" id="lbNota" placeholder="Nota para el proveedor (opcional)">
+  </div>
 </div>
+
 <script>
-const FOTOS = ['001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012', '013', '014', '015', '016', '017', '018', '019', '020', '021', '022', '023', '024', '025', '026', '027', '028', '029', '030', '031', '032', '033', '034', '035', '036', '037', '038', '039', '040', '041', '042', '043', '044', '045', '046', '047', '048', '049', '050', '051', '052', '053', '054', '055', '056', '057', '058', '059', '060', '061', '062', '063', '064', '065', '066', '067', '068', '069', '070', '071', '072', '073', '074', '075', '076', '077', '078', '079', '080', '081', '082', '083', '084', '085', '086', '087', '088', '089', '090', '091', '092', '093', '094', '095', '096', '097', '098', '099', '100', '101', '102', '103', '104', '105', '106', '107', '108', '109', '110', '111', '112', '113', '114', '115', '116', '117', '118', '119', '120', '121', '122', '123', '124', '125', '126', '127', '128', '129', '130', '131', '132', '133', '134', '135', '136', '137', '138', '139', '140', '141', '142', '143', '144', '145', '146', '147', '148', '149', '150', '151', '152', '153', '154', '155', '156', '157', '158', '159', '160', '161', '162', '163', '164', '165', '166', '167', '168', '169', '170', '171', '172', '173', '174', '175', '176', '177', '178', '179', '180', '181', '182', '183', '184', '185', '186', '187', '188', '189', '190', '191', '192', '193', '194', '195', '196', '197', '198', '199', '200', '201', '202', '203', '204', '205', '206', '207', '208', '209', '210', '211', '212', '213', '214', '215', '216', '217', '218', '219', '220', '221', '222', '223', '224', '225', '226', '227', '228', '229', '230', '231', '232', '233', '234', '235', '236', '237', '238', '239', '240', '241', '242', '243', '244', '245', '246', '247', '248', '249', '250', '251', '252', '253', '254', '255', '256', '257', '258', '259', '260', '261', '262', '263', '264', '265', '266', '267', '268', '269', '270', '271', '272', '273', '274', '275', '276', '277', '278', '279', '280', '281', '282', '283', '284', '285', '286', '287', '288', '289', '290', '291', '292', '293', '294', '295', '296', '297', '298', '299', '300', '301', '302', '303', '304', '305', '306', '307', '308'];
-const KEY='catalogo-lentes-favs';
-let favs=new Set(JSON.parse(localStorage.getItem(KEY)||'[]'));
-let soloFavs=false, lista=[], pos=0;
-const $=id=>document.getElementById(id);
-$('total').textContent=FOTOS.length;
-function guardar(){localStorage.setItem(KEY,JSON.stringify([...favs]));$('nf').textContent=favs.size;}
-function pintar(){
-  lista=FOTOS.filter(f=>!soloFavs||favs.has(f));
-  const g=$('grid');
-  if(!lista.length){g.innerHTML='<div class="empty">Aún no has marcado ninguna foto con ♥</div>';return;}
-  g.innerHTML=lista.map((f,i)=>`<div class="item" id="n${+f}" data-i="${i}"><img loading="lazy" src="mini/${f}.jpg" alt="Lentes nº ${+f}"><span class="num">${+f}</span><button class="fav ${favs.has(f)?'on':''}" data-n="${f}" aria-label="Marcar">♥</button></div>`).join('');
+const REPO = 'IanGods1/my-proyect';
+const FLUJO = 'actualizar-catalogo.yml';
+const MAX_POR_ENVIO = 30;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const guardado = (k, def) => { try { return JSON.parse(localStorage.getItem(k)) ?? def; } catch { return def; } };
+const guardar = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+
+let CAT = null;            // catalogo.json
+let pedido = {};           // { n: { c: cantidad, nota } }
+let soloSel = false, lista = [], pos = 0;
+let grupoEnvio = 0;        // para mandar en grupos de 30
+
+$('linkGithub').href = `https://github.com/${REPO}/actions/workflows/${FLUJO}`;
+$('wa').value = guardado('cat-wa', '');
+$('saludo').value = guardado('cat-saludo', 'Hola, este es mi pedido de lentes:');
+$('wa').onchange = () => guardar('cat-wa', $('wa').value.trim());
+$('saludo').onchange = () => guardar('cat-saludo', $('saludo').value);
+
+const src = (f) => `${f.archivo}?v=${CAT.id}`;
+const cant = (n) => (pedido[n] && pedido[n].c) || 0;
+const elegidos = () => CAT.fotos.filter((f) => cant(f.n) > 0);
+
+async function cargar() {
+  try {
+    const r = await fetch(`catalogo.json?t=${Date.now()}`, { cache: 'no-store' });
+    CAT = await r.json();
+  } catch (e) {
+    $('sub').textContent = 'No se pudo cargar el catálogo. Revise el internet.';
+    return;
+  }
+  $('titulo').textContent = CAT.titulo;
+  document.title = 'Catálogo · ' + CAT.titulo;
+  const fecha = new Date(CAT.actualizado).toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' });
+  $('sub').textContent = `${CAT.fotos.length} fotos · actualizado el ${fecha}`;
+  $('origen').textContent = 'Catálogo actual: ' + CAT.origen;
+  const g = guardado('cat-pedido', null);
+  pedido = g && g.id === CAT.id ? g.items : {};
+  if (g && g.id !== CAT.id && Object.keys(g.items || {}).length) alert('El catálogo cambió, así que el pedido anterior se vació.');
+  guardarPedido();
+  pintar();
 }
-function alternar(n){favs.has(n)?favs.delete(n):favs.add(n);guardar();}
-$('grid').addEventListener('click',e=>{
-  const b=e.target.closest('.fav');
-  if(b){e.stopPropagation();alternar(b.dataset.n);b.classList.toggle('on');if(soloFavs)pintar();return;}
-  const it=e.target.closest('.item'); if(it) abrir(+it.dataset.i);
+
+function guardarPedido() {
+  for (const n in pedido) if (!pedido[n].c && !pedido[n].nota) delete pedido[n];
+  guardar('cat-pedido', { id: CAT.id, items: pedido });
+  const el = elegidos();
+  const u = el.reduce((s, f) => s + cant(f.n), 0);
+  $('cTxt').textContent = `${el.length} ${el.length === 1 ? 'modelo' : 'modelos'} · ${u} ${u === 1 ? 'unidad' : 'unidades'}`;
+  $('carrito').classList.toggle('ver', el.length > 0);
+  grupoEnvio = 0; preparado = null; ponerTextoBotonFotos();
+}
+
+function ponerCant(n, c) {
+  c = Math.max(0, Math.min(999, parseInt(c, 10) || 0));
+  pedido[n] = { ...(pedido[n] || {}), c };
+  guardarPedido();
+  document.querySelectorAll(`[data-n="${n}"]`).forEach((card) => {
+    card.querySelector('input').value = c;
+    card.classList.toggle('sel', c > 0);
+  });
+  return c;
+}
+
+function pintar() {
+  lista = CAT.fotos.filter((f) => !soloSel || cant(f.n) > 0);
+  const g = $('grid');
+  if (!lista.length) { g.innerHTML = '<div class="vacio">Todavía no ha elegido ningún lente. Toque <b>+</b> debajo de una foto.</div>'; return; }
+  g.innerHTML = lista.map((f, i) => `
+    <div class="item ${cant(f.n) ? 'sel' : ''}" id="n${f.n}" data-n="${f.n}">
+      <div class="foto" data-i="${i}"><img loading="lazy" src="${src(f)}" alt="Lentes nº ${f.n}"><span class="num">${f.n}</span>${pedido[f.n] && pedido[f.n].nota ? '<span class="nota-ico">📝</span>' : ''}</div>
+      <div class="paso"><button data-d="-1" aria-label="Menos">−</button><input type="number" inputmode="numeric" min="0" value="${cant(f.n)}" aria-label="Cantidad"><button class="mas" data-d="1" aria-label="Más">+</button></div>
+    </div>`).join('');
+}
+
+$('grid').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-d]');
+  if (b) { const n = +b.closest('.item').dataset.n; const c = ponerCant(n, cant(n) + +b.dataset.d); if (soloSel && !c) pintar(); return; }
+  const fo = e.target.closest('.foto'); if (fo) abrir(+fo.dataset.i);
 });
-function mostrar(){const f=lista[pos];$('lbimg').src='fotos/'+f+'.jpg';$('lbn').textContent=`Nº ${+f}  ·  ${pos+1} de ${lista.length}`;$('lbfav').classList.toggle('on',favs.has(f));
-  [pos-1,pos+1].forEach(k=>{if(lista[k])new Image().src='fotos/'+lista[k]+'.jpg';});}
-function abrir(i){pos=i;$('lb').classList.add('open');mostrar();history.pushState({lb:1},'');}
-function cerrar(){if($('lb').classList.contains('open')){$('lb').classList.remove('open');if(soloFavs)pintar();}}
-function mover(d){pos=(pos+d+lista.length)%lista.length;mostrar();}
-$('cerrar').onclick=()=>history.back();
-window.addEventListener('popstate',cerrar);
-$('prev').onclick=()=>mover(-1);$('next').onclick=()=>mover(1);
-$('lbfav').onclick=()=>{alternar(lista[pos]);mostrar();const b=document.querySelector(`.fav[data-n="${lista[pos]}"]`);if(b)b.classList.toggle('on',favs.has(lista[pos]));};
-document.addEventListener('keydown',e=>{if(!$('lb').classList.contains('open'))return;if(e.key==='ArrowLeft')mover(-1);if(e.key==='ArrowRight')mover(1);if(e.key==='Escape')history.back();});
-let x0=null;$('stage').addEventListener('touchstart',e=>x0=e.touches[0].clientX,{passive:true});
-$('stage').addEventListener('touchend',e=>{if(x0===null)return;const dx=e.changedTouches[0].clientX-x0;if(Math.abs(dx)>50)mover(dx<0?1:-1);x0=null;});
-$('bTodos').onclick=()=>{soloFavs=false;$('bTodos').classList.add('on');$('bFavs').classList.remove('on');pintar();};
-$('bFavs').onclick=()=>{soloFavs=true;$('bFavs').classList.add('on');$('bTodos').classList.remove('on');pintar();};
-$('ir').addEventListener('change',e=>{const n=+e.target.value;if(soloFavs)$('bTodos').click();const el=$('n'+n);if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.style.outline='3px solid #d64545';setTimeout(()=>el.style.outline='',2000);}e.target.value='';});
-guardar();pintar();
+$('grid').addEventListener('change', (e) => {
+  if (e.target.matches('.paso input')) { const n = +e.target.closest('.item').dataset.n; ponerCant(n, e.target.value); if (soloSel) pintar(); }
+});
+
+/* ---- Foto grande ---- */
+function mostrar() {
+  const f = lista[pos];
+  $('lbimg').src = src(f);
+  $('lbn').textContent = `Nº ${f.n}  ·  ${pos + 1} de ${lista.length}`;
+  $('lbCant').value = cant(f.n);
+  $('lbNota').value = (pedido[f.n] && pedido[f.n].nota) || '';
+  [pos - 1, pos + 1].forEach((k) => { if (lista[k]) new Image().src = src(lista[k]); });
+}
+function abrir(i) { pos = i; $('lb').classList.add('open'); mostrar(); history.pushState({ lb: 1 }, ''); }
+function cerrarLb() {
+  if (!$('lb').classList.contains('open')) return false;
+  $('lb').classList.remove('open'); pintar();
+  const el = lista[pos] && $('n' + lista[pos].n); if (el) el.scrollIntoView({ block: 'center' });
+  return true;
+}
+function mover(d) { pos = (pos + d + lista.length) % lista.length; mostrar(); }
+$('lbCerrar').onclick = () => history.back();
+$('prev').onclick = () => mover(-1);
+$('next').onclick = () => mover(1);
+document.querySelectorAll('#lb button[data-d]').forEach((b) => b.onclick = () => { $('lbCant').value = ponerCant(lista[pos].n, cant(lista[pos].n) + +b.dataset.d); });
+$('lbCant').onchange = () => { $('lbCant').value = ponerCant(lista[pos].n, $('lbCant').value); };
+$('lbNota').oninput = () => { const n = lista[pos].n; pedido[n] = { ...(pedido[n] || { c: 0 }), nota: $('lbNota').value }; guardarPedido(); };
+document.addEventListener('keydown', (e) => {
+  if (!$('lb').classList.contains('open') || e.target.tagName === 'INPUT') return;
+  if (e.key === 'ArrowLeft') mover(-1); if (e.key === 'ArrowRight') mover(1); if (e.key === 'Escape') history.back();
+});
+let x0 = null;
+$('stage').addEventListener('touchstart', (e) => x0 = e.touches[0].clientX, { passive: true });
+$('stage').addEventListener('touchend', (e) => { if (x0 === null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 50) mover(dx < 0 ? 1 : -1); x0 = null; });
+
+/* ---- Paneles ---- */
+function abrirPanel(id) { $(id).classList.add('open'); history.pushState({ panel: id }, ''); }
+function cerrarPaneles() { let a = false; document.querySelectorAll('.panel.open').forEach((p) => { p.classList.remove('open'); a = true; }); return a; }
+document.querySelectorAll('[data-cerrar]').forEach((b) => b.onclick = () => history.back());
+document.querySelectorAll('.panel').forEach((p) => p.addEventListener('click', (e) => { if (e.target === p) history.back(); }));
+window.addEventListener('popstate', () => { if (!cerrarLb()) cerrarPaneles(); });
+$('bAyuda').onclick = () => abrirPanel('pAyuda');
+$('bAjustes').onclick = () => abrirPanel('pAjustes');
+$('bTodos').onclick = () => { soloSel = false; $('bTodos').classList.add('on'); $('bSel').classList.remove('on'); pintar(); };
+$('bSel').onclick = () => { soloSel = true; $('bSel').classList.add('on'); $('bTodos').classList.remove('on'); pintar(); scrollTo(0, 0); };
+$('ir').addEventListener('change', (e) => {
+  const n = +e.target.value; if (soloSel) $('bTodos').click();
+  const el = $('n' + n);
+  if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.style.outline = '3px solid #e67e22'; setTimeout(() => el.style.outline = '', 2000); }
+  e.target.value = '';
+});
+
+/* ---- Pedido ---- */
+function pintarPedido() {
+  const el = elegidos();
+  const u = el.reduce((s, f) => s + cant(f.n), 0);
+  $('pResumen').textContent = el.length ? `${el.length} modelos · ${u} unidades en total` : 'El pedido está vacío.';
+  $('pLista').innerHTML = el.map((f) => `
+    <div class="linea" data-n="${f.n}">
+      <img src="${src(f)}" alt="" data-ver="${f.n}">
+      <div class="der">
+        <b>Nº ${f.n}</b>
+        <div class="paso"><button data-d="-1">−</button><input type="number" inputmode="numeric" min="0" value="${cant(f.n)}"><button class="mas" data-d="1">+</button></div>
+        <input class="nota" placeholder="Nota (opcional)" value="${esc((pedido[f.n] && pedido[f.n].nota) || '')}">
+      </div>
+    </div>`).join('');
+}
+$('carrito').onclick = () => { pintarPedido(); abrirPanel('pPedido'); };
+$('pLista').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-d]');
+  if (b) { const n = +b.closest('.linea').dataset.n; ponerCant(n, cant(n) + +b.dataset.d); pintarPedido(); pintar(); }
+});
+$('pLista').addEventListener('change', (e) => {
+  const n = +e.target.closest('.linea').dataset.n;
+  if (e.target.matches('.paso input')) { ponerCant(n, e.target.value); pintarPedido(); pintar(); }
+});
+$('pLista').addEventListener('input', (e) => {
+  if (!e.target.matches('input.nota')) return;
+  const n = +e.target.closest('.linea').dataset.n;
+  pedido[n] = { ...(pedido[n] || { c: 0 }), nota: e.target.value }; guardarPedido();
+});
+$('vaciar').onclick = () => { if (confirm('¿Vaciar todo el pedido?')) { pedido = {}; guardarPedido(); pintarPedido(); pintar(); } };
+
+function textoPedido() {
+  const el = elegidos();
+  const u = el.reduce((s, f) => s + cant(f.n), 0);
+  const lineas = el.map((f) => {
+    const nota = pedido[f.n].nota ? ` (${pedido[f.n].nota.trim()})` : '';
+    return `• Foto Nº ${f.n}: ${cant(f.n)} ${cant(f.n) === 1 ? 'unidad' : 'unidades'}${nota}`;
+  });
+  return `${$('saludo').value.trim()}\n\nCatálogo: ${CAT.titulo}\n\n${lineas.join('\n')}\n\nTotal: ${el.length} modelos, ${u} unidades`;
+}
+
+$('enviarTexto').onclick = () => {
+  if (!elegidos().length) return alert('Primero elija algún lente.');
+  const num = $('wa').value.replace(/\D/g, '');
+  location.href = `https://wa.me/${num}?text=${encodeURIComponent(textoPedido())}`;
+};
+
+// Dibuja la foto con una franja blanca abajo: número, cantidad y nota
+async function fotoConTexto(f) {
+  const img = new Image();
+  img.src = src(f);
+  await img.decode();
+  const W = img.naturalWidth, H = img.naturalHeight;
+  const esc = W / 800, nota = (pedido[f.n].nota || '').trim();
+  const t1 = Math.round(46 * esc), t2 = Math.round(32 * esc), pad = Math.round(22 * esc);
+  const ctx0 = document.createElement('canvas').getContext('2d');
+  // partir la nota en líneas
+  const lineasNota = [];
+  if (nota) {
+    ctx0.font = `${t2}px sans-serif`;
+    let actual = '';
+    for (const p of nota.split(/\s+/)) {
+      const prueba = actual ? actual + ' ' + p : p;
+      if (ctx0.measureText(prueba).width > W - pad * 2 && actual) { lineasNota.push(actual); actual = p; } else actual = prueba;
+    }
+    if (actual) lineasNota.push(actual);
+  }
+  const franja = pad * 2 + t1 + lineasNota.length * (t2 * 1.3);
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H + franja;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.drawImage(img, 0, 0);
+  ctx.fillStyle = '#111'; ctx.textBaseline = 'top';
+  ctx.font = `bold ${t1}px sans-serif`;
+  ctx.fillText(`Nº ${f.n}  —  Cantidad: ${cant(f.n)}`, pad, H + pad);
+  ctx.font = `${t2}px sans-serif`; ctx.fillStyle = '#333';
+  lineasNota.forEach((l, i) => ctx.fillText(l, pad, H + pad + t1 + 8 * esc + i * t2 * 1.3));
+  const blob = await new Promise((ok) => c.toBlob(ok, 'image/jpeg', 0.85));
+  return new File([blob], `lente-${String(f.n).padStart(3, '0')}-x${cant(f.n)}.jpg`, { type: 'image/jpeg' });
+}
+
+function ponerTextoBotonFotos() {
+  const el = CAT ? elegidos() : [];
+  const grupos = Math.ceil(el.length / MAX_POR_ENVIO);
+  const b = $('enviarFotos');
+  b.textContent = grupos > 1 ? `📸 Enviar con fotos — grupo ${grupoEnvio + 1} de ${grupos}` : '📸 Enviar con fotos por WhatsApp';
+}
+
+let preparado = null;   // fotos listas esperando un toque para compartir
+async function compartir() {
+  const { files, texto, grupos } = preparado;
+  try {
+    await navigator.share({ files, text: texto });
+  } catch (e) {
+    if (e.name === 'AbortError') { preparado = null; ponerTextoBotonFotos(); return; }
+    // el teléfono pide un toque nuevo después de preparar muchas fotos
+    $('enviarFotos').textContent = '📸 Toque otra vez para compartir';
+    return;
+  }
+  preparado = null;
+  grupoEnvio = (grupoEnvio + 1) % grupos;
+  ponerTextoBotonFotos();
+  if (grupoEnvio > 0) alert(`Listo el envío ${grupoEnvio} de ${grupos}. Toque el botón verde otra vez para el siguiente.`);
+}
+$('enviarFotos').onclick = async () => {
+  if (preparado) return compartir();
+  const el = elegidos();
+  if (!el.length) return alert('Primero elija algún lente.');
+  if (!navigator.canShare || !navigator.canShare({ files: [new File([''], 'x.jpg', { type: 'image/jpeg' })] })) {
+    alert('Este navegador no puede compartir fotos. Ábralo en el teléfono (Chrome o Safari). Por ahora se enviará solo la lista.');
+    return $('enviarTexto').click();
+  }
+  const grupos = Math.ceil(el.length / MAX_POR_ENVIO);
+  const parte = el.slice(grupoEnvio * MAX_POR_ENVIO, (grupoEnvio + 1) * MAX_POR_ENVIO);
+  const b = $('enviarFotos');
+  b.disabled = true; b.textContent = 'Preparando fotos…';
+  try {
+    const files = [];
+    for (const f of parte) files.push(await fotoConTexto(f));
+    // en el primer envío va la lista completa; en los demás solo el aviso
+    const texto = grupoEnvio === 0 ? textoPedido() + (grupos > 1 ? `\n\n(Fotos en ${grupos} envíos)` : '')
+      : `Pedido — fotos, envío ${grupoEnvio + 1} de ${grupos}`;
+    preparado = { files, texto, grupos };
+  } catch (e) {
+    ponerTextoBotonFotos();
+    return alert('No se pudieron preparar las fotos: ' + e.message);
+  } finally { b.disabled = false; }
+  await compartir();
+};
+
+/* ---- Actualizar catálogo ---- */
+$('clave').value = localStorage.getItem('cat-clave') || '';
+$('guardarClave').onclick = () => { localStorage.setItem('cat-clave', $('clave').value.trim()); estado('✅ Clave guardada en este teléfono.'); $('dClave').open = false; };
+function estado(t) { $('estado').innerHTML = t; $('estado').classList.add('ver'); }
+const espera = (ms) => new Promise((ok) => setTimeout(ok, ms));
+
+$('actualizar').onclick = async () => {
+  const link = $('nuevoLink').value.trim();
+  if (!/^https:\/\/(photos\.app\.goo\.gl|photos\.google\.com)\//.test(link)) return estado('⚠️ Pegue un link de Google Fotos (empieza con https://photos.app.goo.gl/ o https://photos.google.com/).');
+  const clave = localStorage.getItem('cat-clave');
+  if (!clave) { $('dClave').open = true; return estado('🔑 Primero guarde la clave de GitHub (abajo).'); }
+  const api = (ruta, op = {}) => fetch(`https://api.github.com/repos/${REPO}${ruta}`, { ...op, headers: { Authorization: 'Bearer ' + clave, Accept: 'application/vnd.github+json', ...(op.headers || {}) } });
+  const b = $('actualizar'); b.disabled = true;
+  const idAntes = CAT.id;
+  try {
+    const desde = new Date(Date.now() - 60000).toISOString();
+    const r = await api(`/actions/workflows/${FLUJO}/dispatches`, { method: 'POST', body: JSON.stringify({ ref: 'main', inputs: { url: link } }) });
+    if (r.status === 401 || r.status === 403) throw new Error('La clave no sirve o no tiene permiso de “Actions”. Revise los pasos de la clave.');
+    if (r.status === 404) throw new Error('No se encontró el proceso en GitHub. ¿Ya se subió a la rama principal?');
+    if (!r.ok) throw new Error('GitHub respondió ' + r.status);
+    estado('⏳ Pedido enviado a GitHub. Descargando las fotos del álbum… (2 a 5 minutos, puede dejar esta pantalla abierta)');
+    // seguir el proceso
+    let corrida = null;
+    for (let i = 0; i < 120; i++) {
+      await espera(8000);
+      const rr = await api(`/actions/workflows/${FLUJO}/runs?per_page=1&created=>=${desde}`);
+      const j = await rr.json();
+      corrida = j.workflow_runs && j.workflow_runs[0];
+      if (corrida && corrida.status === 'completed') break;
+      if (corrida) estado(`⏳ Descargando fotos… (${corrida.status === 'queued' ? 'en espera' : 'trabajando'})`);
+    }
+    if (!corrida || corrida.conclusion !== 'success') {
+      throw new Error(`El proceso falló. Revise que el álbum esté compartido con link. <a href="${corrida ? corrida.html_url : $('linkGithub').href}" target="_blank" rel="noopener">Ver detalle</a>`);
+    }
+    estado('📦 Fotos descargadas. Publicando la página nueva…');
+    for (let i = 0; i < 60; i++) {
+      await espera(10000);
+      try {
+        const c = await (await fetch(`catalogo.json?t=${Date.now()}`, { cache: 'no-store' })).json();
+        if (c.id !== idAntes) { estado(`✅ ¡Listo! Catálogo nuevo con ${c.fotos.length} fotos.`); await espera(1500); location.reload(); return; }
+      } catch {}
+    }
+    estado('✅ Fotos guardadas. La página tarda un poco más en publicarse: recargue en unos minutos.');
+  } catch (e) {
+    estado('❌ ' + e.message);
+  } finally { b.disabled = false; }
+};
+
+if (!localStorage.getItem('cat-visto-ayuda')) { localStorage.setItem('cat-visto-ayuda', '1'); setTimeout(() => abrirPanel('pAyuda'), 600); }
+cargar();
 </script>
 </body>
 </html>

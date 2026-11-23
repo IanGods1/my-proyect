@@ -1,6 +1,6 @@
 /* Guarda la app en el teléfono para que abra sin internet.
    Si cambia algún archivo de la app, suba el número de VERSION. */
-const VERSION = 'san-vicenta-v21';
+const VERSION = 'san-vicenta-v22';
 const ARCHIVOS = [
   './',
   './index.html',
@@ -40,6 +40,8 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   // Firebase y otros servidores: pasan directo (no se guardan aquí)
   if (new URL(e.request.url).origin !== location.origin) return;
+  // Catálogo de lentes: siempre desde internet, porque sus fotos cambian al actualizarlo
+  if (new URL(e.request.url).pathname.includes('/catalogo-lentes/')) return;
   e.respondWith(
     caches.match(e.request, { ignoreSearch: true }).then((enCache) => {
       if (enCache) return enCache;
