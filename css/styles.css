@@ -927,3 +927,17 @@ html[data-tema="grafito"] {
 .presentacion-costo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .presentacion-costo > div:only-child, .presentacion-costo > div:first-child:nth-last-child(2) + .oculto { grid-column: auto; }
 .item-costo { white-space: normal; }
+
+/* Factura: producto que ya existe */
+.ya-existe {
+  margin-top: 8px; padding: 10px 12px; border-radius: 14px;
+  background: rgba(255, 204, 77, 0.1); border: 1px solid rgba(255, 204, 77, 0.45);
+}
+.ya-existe p { margin: 0 0 6px; }
+.ya-existe-titulo { display: flex; align-items: center; gap: 6px; color: var(--amarillo); font-weight: 800; }
+.ya-existe-titulo .ico { width: 18px; height: 18px; }
+.ya-existe-botones { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+.ya-existe-botones .btn { font-size: 0.88rem; line-height: 1.2; padding: 8px 10px; }
+/* Si se quita, se atenúa la tarjeta pero el aviso y los botones se siguen viendo claros */
+.linea-factura.excluida { opacity: 1; }
+.linea-factura.excluida > *:not(.ya-existe):not(.fila-check) { opacity: 0.45; }
