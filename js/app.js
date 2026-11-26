@@ -171,7 +171,7 @@ function productoPorCodigo(codigo, excluirId) {
 
 /* ---- Presentación del precio de costo (por unidad, caja, docena…) ----
    precioCosto guarda el precio tal como se escribió (ej. Q 58.00 por caja).
-   costoPresentacion: 'unidad' | 'docena' | 'caja' | 'fardo' | 'paquete' | 'display' | 'otro'
+   costoPresentacion: 'unidad' | 'docena' | 'caja' | 'fardo' | 'paquete' | 'bolsa' | 'display' | 'otro'
    costoUnidades: cuántas unidades trae (si se sabe). costoPresentacionTexto: el nombre si es 'otro'. */
 const PRESENTACIONES = {
   unidad: { nombre: 'unidad', plural: 'unidades', unidades: 1 },
@@ -179,6 +179,7 @@ const PRESENTACIONES = {
   caja: { nombre: 'caja', plural: 'cajas' },
   fardo: { nombre: 'fardo', plural: 'fardos' },
   paquete: { nombre: 'paquete', plural: 'paquetes' },
+  bolsa: { nombre: 'bolsa', plural: 'bolsas' },
   display: { nombre: 'display', plural: 'displays' },
   otro: { nombre: 'otro', plural: 'otros' },
 };
@@ -1074,7 +1075,7 @@ function renderDetalle(id) {
       <div class="detalle-fila"><span>Código</span><span>${esc(p.codigo || 'Sin código')}</span></div>
       <div class="detalle-fila"><span>Precio de venta</span><span>${q(p.precioVenta)}</span></div>
       <div class="detalle-fila"><span>Precio de costo</span><span>${textoCosto(p)}</span></div>
-      ${p.descripcion ? `<div class="detalle-fila"><span>Descripción</span><span>${esc(p.descripcion)}</span></div>` : ''}
+      ${p.descripcion ? `<div class="detalle-fila"><span>Comentario</span><span>${esc(p.descripcion)}</span></div>` : ''}
       <div class="detalle-fila"><span>Ganancia</span><span class="${g ? (g.ganancia >= 0 ? 'positivo' : 'negativo') : ''}">${g ? q(g.ganancia) + (g.porcentaje !== null ? ` (${g.porcentaje}%)` : '') : '—'}</span></div>
       <div class="detalle-fila"><span>Lugar de compra</span><span>${esc(p.lugarCompra || '—')}</span></div>
       <div class="detalle-fila"><span>Categoría</span><span>${esc(nombreCategoria(p.categoriaId))}</span></div>
@@ -1240,7 +1241,7 @@ async function guardarFormulario(e) {
     return error('"¿Cuántas trae?" debe ser un número entero. Ejemplo: 12', '#f-unidades');
   }
   if (presentacion.costoPresentacion === 'otro' && !presentacion.costoPresentacionTexto) {
-    return error('Escriba por qué es el costo (ej. bolsa, quintal).', '#f-otro');
+    return error('Escriba por qué es el costo (ej. quintal, tira).', '#f-otro');
   }
   const descripcion = $('#f-descripcion').value.trim().replace(/\s+/g, ' ');
   const unitario = costoUnitario({ precioCosto: costo, ...presentacion });
@@ -1825,6 +1826,7 @@ function armarFactura(r) {
       costo: precioTexto(l.costoUnitario),
       venta: precioTexto(ventaSugerida(l.costoUnitario)),
       // La IA da el costo por unidad. Si se cambia a caja/docena…, el costo se pasa al precio del paquete.
+      comentario: '',
       presentacion: 'unidad',
       unidades: l.unidadesPorPaquete > 1 ? l.unidadesPorPaquete : null,
       otroTexto: '',
@@ -1926,7 +1928,9 @@ function renderLineaFactura(l, i) {
       </div>
       ${pres === 'otro' ? `
         <label class="etiqueta">¿Por qué es el costo?</label>
-        <input class="input" type="text" maxlength="30" data-campo="otroTexto" placeholder="Ej. bolsa, quintal" value="${esc(l.otroTexto || '')}">` : ''}
+        <input class="input" type="text" maxlength="30" data-campo="otroTexto" placeholder="Ej. quintal, tira" value="${esc(l.otroTexto || '')}">` : ''}
+      <label class="etiqueta">Comentario (opcional)</label>
+      <input class="input" type="text" maxlength="120" data-campo="comentario" value="${esc(l.comentario || (existente && existente.descripcion) || '')}" placeholder="Ej. Bolsa de 100, se vende por unidad">
       ${existente ? '' : `
         <label class="etiqueta">Categoría</label>
         <select class="input" data-campo="categoriaId">
@@ -2007,8 +2011,8 @@ function alCambiarFactura(e) {
       const venta = li.querySelector('[data-campo="venta"]');
       if (venta) venta.value = l.venta;
     }
-  } else if (campo === 'otroTexto') {
-    l.otroTexto = el.value;
+  } else if (campo === 'otroTexto' || campo === 'comentario') {
+    l[campo] = el.value;
   } else if (campo === 'venta') {
     l.venta = el.value;
     l.ventaEditada = true;
@@ -2036,7 +2040,7 @@ function guardarFactura() {
     const costo = leerPrecio(l.costo);
     const nombreMostrado = l.productoId ? productoPorId(l.productoId)?.nombre : l.nombre;
     if (costo === null || Number.isNaN(costo)) return error(`Revise el costo de "${nombreMostrado || l.descripcion}". Ejemplo: 7.50`, i);
-    if (l.presentacion === 'otro' && !String(l.otroTexto || '').trim()) return error(`Escriba por qué es el costo de "${nombreMostrado || l.descripcion}" (ej. bolsa, quintal).`, i);
+    if (l.presentacion === 'otro' && !String(l.otroTexto || '').trim()) return error(`Escriba por qué es el costo de "${nombreMostrado || l.descripcion}" (ej. quintal, tira).`, i);
     if (l.productoId) {
       if (!productoPorId(l.productoId)) return error('Uno de los productos elegidos ya no existe. Elija otro.', i);
       revisadas.push({ l, costo });
@@ -2062,6 +2066,8 @@ function guardarFactura() {
       const p = productoPorId(l.productoId);
       const alias = [...new Set([...(Array.isArray(p.aliasFactura) ? p.aliasFactura : []), l.descripcion].filter(Boolean))].slice(-10);
       const cambios = { precioCosto: costo, ...presentacion, aliasFactura: alias, actualizado: ahora, actualizadoPor: sesion.nombre };
+      const comentario = String(l.comentario || '').trim().replace(/\s+/g, ' ').slice(0, 120);
+      if (comentario) cambios.descripcion = comentario;
       if (proveedor) cambios.lugarCompra = proveedor;
       ponerLocal(datos.productos, { id: p.id, ...cambios });
       ops.push((lote) => lote.update(refDoc('productos', p.id), cambios));
@@ -2069,6 +2075,7 @@ function guardarFactura() {
       const ref = fb.doc(refColeccion('productos'));
       const nuevo = {
         codigo: '', nombre, precioVenta: venta, precioCosto: costo, ...presentacion, lugarCompra: proveedor,
+        descripcion: String(l.comentario || '').trim().replace(/\s+/g, ' ').slice(0, 120),
         categoriaId: l.categoriaId || null, aliasFactura: l.descripcion ? [l.descripcion] : [],
         creado: ahora, actualizado: ahora, actualizadoPor: sesion.nombre,
       };
