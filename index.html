@@ -266,11 +266,38 @@
             </div>
           </div>
         </div>
+
+        <!-- El precio de costo ¿es por unidad, por caja, por docena…? -->
+        <div class="presentacion-costo">
+          <div>
+            <label class="etiqueta" for="f-presentacion">El costo es por</label>
+            <select id="f-presentacion" class="input">
+              <option value="unidad">Unidad</option>
+              <option value="docena">Docena (12)</option>
+              <option value="caja">Caja</option>
+              <option value="fardo">Fardo</option>
+              <option value="paquete">Paquete</option>
+              <option value="display">Display</option>
+              <option value="otro">Otro…</option>
+            </select>
+          </div>
+          <div id="f-unidades-caja" class="oculto">
+            <label class="etiqueta" for="f-unidades">¿Cuántas trae?</label>
+            <input id="f-unidades" type="text" inputmode="numeric" class="input" placeholder="Si sabe">
+          </div>
+        </div>
+        <div id="f-otro-caja" class="oculto">
+          <label class="etiqueta" for="f-otro">¿Por qué es el costo?</label>
+          <input id="f-otro" type="text" class="input" maxlength="30" placeholder="Ej. bolsa, quintal, tira">
+        </div>
         <p id="f-ganancia" class="ganancia"></p>
 
         <label class="etiqueta" for="f-lugar">Lugar de compra / proveedor</label>
         <input id="f-lugar" type="text" class="input" placeholder="Ej. Distribuidora La Económica" list="lista-lugares" maxlength="60">
         <datalist id="lista-lugares"></datalist>
+
+        <label class="etiqueta" for="f-descripcion">Descripción (opcional)</label>
+        <input id="f-descripcion" type="text" class="input" maxlength="120" placeholder="Ej. Caja de 12 sobres, se vende por sobre">
 
         <label class="etiqueta" for="f-categoria">Categoría</label>
         <select id="f-categoria" class="input"></select>

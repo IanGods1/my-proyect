@@ -922,3 +922,8 @@ html[data-tema="grafito"] {
 .repetido-precios .detalle-fila { padding: 8px 0; font-size: 0.98rem; }
 .repetido-nuevo { display: flex; margin: 6px auto 0; font-size: 0.9rem; }
 .repetido-precios .detalle-fila span:last-child { white-space: nowrap; }
+
+/* Formulario: el costo es por unidad, caja, docena… */
+.presentacion-costo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.presentacion-costo > div:only-child, .presentacion-costo > div:first-child:nth-last-child(2) + .oculto { grid-column: auto; }
+.item-costo { white-space: normal; }
