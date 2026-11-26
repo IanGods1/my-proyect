@@ -171,7 +171,7 @@ function productoPorCodigo(codigo, excluirId) {
 
 /* ---- Presentación del precio de costo (por unidad, caja, docena…) ----
    precioCosto guarda el precio tal como se escribió (ej. Q 58.00 por caja).
-   costoPresentacion: 'unidad' | 'docena' | 'caja' | 'fardo' | 'paquete' | 'display' | 'otro'
+   costoPresentacion: 'unidad' | 'docena' | 'caja' | 'fardo' | 'paquete' | 'bolsa' | 'display' | 'otro'
    costoUnidades: cuántas unidades trae (si se sabe). costoPresentacionTexto: el nombre si es 'otro'. */
 const PRESENTACIONES = {
   unidad: { nombre: 'unidad', plural: 'unidades', unidades: 1 },
@@ -179,6 +179,7 @@ const PRESENTACIONES = {
   caja: { nombre: 'caja', plural: 'cajas' },
   fardo: { nombre: 'fardo', plural: 'fardos' },
   paquete: { nombre: 'paquete', plural: 'paquetes' },
+  bolsa: { nombre: 'bolsa', plural: 'bolsas' },
   display: { nombre: 'display', plural: 'displays' },
   otro: { nombre: 'otro', plural: 'otros' },
 };
@@ -1240,7 +1241,7 @@ async function guardarFormulario(e) {
     return error('"¿Cuántas trae?" debe ser un número entero. Ejemplo: 12', '#f-unidades');
   }
   if (presentacion.costoPresentacion === 'otro' && !presentacion.costoPresentacionTexto) {
-    return error('Escriba por qué es el costo (ej. bolsa, quintal).', '#f-otro');
+    return error('Escriba por qué es el costo (ej. quintal, tira).', '#f-otro');
   }
   const descripcion = $('#f-descripcion').value.trim().replace(/\s+/g, ' ');
   const unitario = costoUnitario({ precioCosto: costo, ...presentacion });
@@ -1926,7 +1927,7 @@ function renderLineaFactura(l, i) {
       </div>
       ${pres === 'otro' ? `
         <label class="etiqueta">¿Por qué es el costo?</label>
-        <input class="input" type="text" maxlength="30" data-campo="otroTexto" placeholder="Ej. bolsa, quintal" value="${esc(l.otroTexto || '')}">` : ''}
+        <input class="input" type="text" maxlength="30" data-campo="otroTexto" placeholder="Ej. quintal, tira" value="${esc(l.otroTexto || '')}">` : ''}
       ${existente ? '' : `
         <label class="etiqueta">Categoría</label>
         <select class="input" data-campo="categoriaId">
@@ -2036,7 +2037,7 @@ function guardarFactura() {
     const costo = leerPrecio(l.costo);
     const nombreMostrado = l.productoId ? productoPorId(l.productoId)?.nombre : l.nombre;
     if (costo === null || Number.isNaN(costo)) return error(`Revise el costo de "${nombreMostrado || l.descripcion}". Ejemplo: 7.50`, i);
-    if (l.presentacion === 'otro' && !String(l.otroTexto || '').trim()) return error(`Escriba por qué es el costo de "${nombreMostrado || l.descripcion}" (ej. bolsa, quintal).`, i);
+    if (l.presentacion === 'otro' && !String(l.otroTexto || '').trim()) return error(`Escriba por qué es el costo de "${nombreMostrado || l.descripcion}" (ej. quintal, tira).`, i);
     if (l.productoId) {
       if (!productoPorId(l.productoId)) return error('Uno de los productos elegidos ya no existe. Elija otro.', i);
       revisadas.push({ l, costo });
