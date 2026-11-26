@@ -1855,6 +1855,7 @@ const presLinea = (l) => ({
   costoPresentacionTexto: l.otroTexto || '',
 });
 const unitarioLinea = (l) => (Number.isNaN(leerPrecio(l.costo)) ? null : costoUnitario(presLinea(l)));
+const sinCorte = (t) => String(t).replace(/Q /g, 'Q\u00a0'); // la "Q" no se separa del número
 const textoNotaUnitario = (u) => (u !== null ? `= ${q(u)} por unidad` : 'Ponga cuántas trae para saber el costo por unidad');
 
 function renderLineaFactura(l, i) {
@@ -1898,7 +1899,15 @@ function renderLineaFactura(l, i) {
         <option value="" ${l.productoId ? '' : 'selected'}>🆕 Producto nuevo</option>
         ${opcionesProductos}
       </select>
-      ${existente ? '' : `
+      ${existente ? `
+        <div class="ya-existe">
+          <p class="ya-existe-titulo">${ico('alerta')} Este producto ya existe</p>
+          <p class="pequeno">Costo actual: <strong>${esc(textoCosto(existente, { corto: true }))}</strong> · Venta: <strong>${q(existente.precioVenta)}</strong></p>
+          <div class="ya-existe-botones">
+            <button type="button" class="btn btn-compacto ${l.incluir ? 'btn-secundario' : 'btn-primario'}" data-op-linea="mantener">Quitar (dejar ${esc(sinCorte(textoCosto(existente, { corto: true })))})</button>
+            <button type="button" class="btn btn-compacto ${l.incluir ? 'btn-primario' : 'btn-secundario'}" data-op-linea="actualizar">Actualizar a ${esc(sinCorte(textoCosto(presLinea(l), { corto: true })))}</button>
+          </div>
+        </div>` : `
         <label class="etiqueta">Nombre</label>
         <input class="input" type="text" maxlength="80" data-campo="nombre" value="${esc(l.nombre)}">`}
       <div class="dos-columnas">
@@ -2003,6 +2012,8 @@ function alCambiarFactura(e) {
     } else {
       l.costo = el.value;
     }
+    const btnActualizar = li.querySelector('[data-op-linea="actualizar"]');
+    if (btnActualizar) btnActualizar.textContent = `Actualizar a ${sinCorte(textoCosto(presLinea(l), { corto: true }))}`;
     const nota = li.querySelector('.nota-unitario');
     if (nota) nota.textContent = textoNotaUnitario(unitarioLinea(l));
     if (!l.ventaEditada) {
@@ -2986,6 +2997,16 @@ function conectarEventos() {
   $('#vista-factura').addEventListener('input', alCambiarFactura);
   $('#vista-factura').addEventListener('change', alCambiarFactura);
   $('#vista-factura').addEventListener('click', (e) => {
+    const op = e.target.closest('[data-op-linea]');
+    if (op) {
+      // Producto que ya existe: quitarlo de la factura (deja el precio de antes) o actualizar su precio
+      const li = op.closest('[data-i]');
+      const i = Number(li.dataset.i);
+      facturaActual.lineas[i].incluir = op.dataset.opLinea === 'actualizar';
+      li.outerHTML = renderLineaFactura(facturaActual.lineas[i], i);
+      actualizarResumenFactura();
+      return;
+    }
     if (e.target.closest('#fa-guardar')) guardarFactura();
     else if (e.target.closest('#fa-cancelar')) cancelarFactura();
   });
