@@ -169,6 +169,52 @@ function productoPorCodigo(codigo, excluirId) {
   return datos.productos.find((p) => p.id !== excluirId && variantes.has(p.codigo)) || null;
 }
 
+/* ---- Presentación del precio de costo (por unidad, caja, docena…) ----
+   precioCosto guarda el precio tal como se escribió (ej. Q 58.00 por caja).
+   costoPresentacion: 'unidad' | 'docena' | 'caja' | 'fardo' | 'paquete' | 'display' | 'otro'
+   costoUnidades: cuántas unidades trae (si se sabe). costoPresentacionTexto: el nombre si es 'otro'. */
+const PRESENTACIONES = {
+  unidad: { nombre: 'unidad', plural: 'unidades', unidades: 1 },
+  docena: { nombre: 'docena', plural: 'docenas', unidades: 12 },
+  caja: { nombre: 'caja', plural: 'cajas' },
+  fardo: { nombre: 'fardo', plural: 'fardos' },
+  paquete: { nombre: 'paquete', plural: 'paquetes' },
+  display: { nombre: 'display', plural: 'displays' },
+  otro: { nombre: 'otro', plural: 'otros' },
+};
+const presentacionDe = (p) => (PRESENTACIONES[p && p.costoPresentacion] ? p.costoPresentacion : 'unidad');
+function nombrePresentacion(p, cantidad = 1) {
+  const id = presentacionDe(p);
+  if (id === 'otro') {
+    const t = String(p.costoPresentacionTexto || 'otro').toLowerCase();
+    if (cantidad === 1 || /s$/.test(t)) return t;
+    return /[aeiouáéíóú]$/.test(t) ? `${t}s` : `${t}es`; // bolsa → bolsas · quintal → quintales
+  }
+  return cantidad === 1 ? PRESENTACIONES[id].nombre : PRESENTACIONES[id].plural;
+}
+/** Unidades que trae la presentación (null si no se sabe). */
+function unidadesDe(p) {
+  const id = presentacionDe(p);
+  if (PRESENTACIONES[id].unidades) return PRESENTACIONES[id].unidades;
+  return typeof p.costoUnidades === 'number' && p.costoUnidades > 0 ? p.costoUnidades : null;
+}
+/** Costo de una unidad (null si no hay costo o no se sabe cuántas trae la caja). */
+function costoUnitario(p) {
+  if (!p || typeof p.precioCosto !== 'number') return null;
+  const u = unidadesDe(p);
+  return u ? Math.round((p.precioCosto / u) * 100) / 100 : null;
+}
+/** "Q 4.83" · "Q 58.00 por caja (12) · Q 4.83 c/u" · "Q 58.00 por caja" */
+function textoCosto(p, { corto = false } = {}) {
+  if (!p || typeof p.precioCosto !== 'number') return '—';
+  if (presentacionDe(p) === 'unidad') return q(p.precioCosto);
+  const u = unidadesDe(p);
+  const base = `${q(p.precioCosto)} por ${nombrePresentacion(p)}${u && presentacionDe(p) !== 'docena' ? ` (${u})` : ''}`;
+  if (corto || !u) return base;
+  return `${base} · ${q(costoUnitario(p))} c/u`;
+}
+const COSTO_POR_UNIDAD = { costoPresentacion: 'unidad', costoUnidades: null, costoPresentacionTexto: '' };
+
 /** Nombre para comparar: sin mayúsculas, tildes, espacios ni signos ("Coca-Cola 600 ml" = "coca cola 600ml"). */
 const claveNombre = (nombre) => normalizar(nombre).replace(/[^a-z0-9ñ]/g, '');
 
@@ -187,14 +233,14 @@ function preguntarRepetido(existente, venta, costo) {
   const fila = (txt, antes, ahora) => `<div class="detalle-fila"><span>${txt}</span><span>${q(antes)} → <strong>${q(ahora)}</strong></span></div>`;
   // Los botones muestran el precio de venta (o el costo, si solo se cambia el costo)
   const hayVenta = venta !== null && venta !== undefined;
-  const antes = hayVenta ? existente.precioVenta : existente.precioCosto;
+  const antes = hayVenta ? existente.precioVenta : (costoUnitario(existente) ?? existente.precioCosto);
   const ahora = hayVenta ? venta : costo;
   return modal({
     titulo: 'Este producto ya existe',
     html: `<p>Ya está registrado <strong>${esc(existente.nombre)}</strong>${existente.codigo ? ` (código ${esc(existente.codigo)})` : ''}.</p>
       <div class="tarjeta repetido-precios">
         ${venta !== null && venta !== undefined ? fila('Venta', existente.precioVenta, venta) : ''}
-        ${costo !== null && costo !== undefined ? fila('Costo', existente.precioCosto, costo) : ''}
+        ${costo !== null && costo !== undefined ? `<div class="detalle-fila"><span>Costo</span><span>${textoCosto(existente, { corto: true })} → <strong>${q(costo)}</strong></span></div>` : ''}
       </div>
       <button type="button" class="btn-enlace repetido-nuevo" data-op="nuevo">No es el mismo: guardarlo como nuevo</button>`,
     botones: [
@@ -206,10 +252,10 @@ function preguntarRepetido(existente, venta, costo) {
 }
 
 /** Cambia los precios del producto que ya existía (y le pone código si no tenía). */
-function actualizarPreciosDe(existente, { venta, costo, codigo, lugar }) {
+function actualizarPreciosDe(existente, { venta, costo, codigo, lugar, presentacion = COSTO_POR_UNIDAD }) {
   const cambios = { actualizado: new Date().toISOString(), actualizadoPor: sesion.nombre };
   if (venta !== null && venta !== undefined) cambios.precioVenta = venta;
-  if (costo !== null && costo !== undefined) cambios.precioCosto = costo;
+  if (costo !== null && costo !== undefined) Object.assign(cambios, { precioCosto: costo }, presentacion);
   if (codigo && !existente.codigo) cambios.codigo = codigo;
   if (lugar) cambios.lugarCompra = lugar;
   ponerLocal(datos.productos, { id: existente.id, ...cambios });
@@ -977,7 +1023,7 @@ function renderListaProductos() {
         <div class="item-sub"><span class="etiqueta-cat">${esc(nombreCategoria(p.categoriaId))}</span></div>
         <div class="item-precios">
           <div class="precio-bloque"><small>Venta</small><span class="item-precio">${q(p.precioVenta)}</span></div>
-          <div class="precio-bloque"><small>Costo</small><span class="item-costo">${typeof p.precioCosto === 'number' ? q(p.precioCosto) : '—'}</span></div>
+          <div class="precio-bloque"><small>Costo</small><span class="item-costo">${textoCosto(p)}</span></div>
         </div>
       </div>${acciones(p)}
     </li>`).join('');
@@ -1013,7 +1059,7 @@ function renderDetalle(id) {
     $('#vista-detalle').innerHTML = '<p class="vacio">Cargando…</p>';
     return;
   }
-  const g = textoGanancia(p.precioVenta, p.precioCosto);
+  const g = textoGanancia(p.precioVenta, costoUnitario(p));
   const fecha = p.actualizado ? new Date(p.actualizado).toLocaleDateString('es-GT', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
   const quien = p.actualizadoPor ? ` (${esc(p.actualizadoPor)})` : '';
   $('#vista-detalle').innerHTML = `
@@ -1027,7 +1073,8 @@ function renderDetalle(id) {
     <div class="tarjeta">
       <div class="detalle-fila"><span>Código</span><span>${esc(p.codigo || 'Sin código')}</span></div>
       <div class="detalle-fila"><span>Precio de venta</span><span>${q(p.precioVenta)}</span></div>
-      <div class="detalle-fila"><span>Precio de costo</span><span>${q(p.precioCosto)}</span></div>
+      <div class="detalle-fila"><span>Precio de costo</span><span>${textoCosto(p)}</span></div>
+      ${p.descripcion ? `<div class="detalle-fila"><span>Descripción</span><span>${esc(p.descripcion)}</span></div>` : ''}
       <div class="detalle-fila"><span>Ganancia</span><span class="${g ? (g.ganancia >= 0 ? 'positivo' : 'negativo') : ''}">${g ? q(g.ganancia) + (g.porcentaje !== null ? ` (${g.porcentaje}%)` : '') : '—'}</span></div>
       <div class="detalle-fila"><span>Lugar de compra</span><span>${esc(p.lugarCompra || '—')}</span></div>
       <div class="detalle-fila"><span>Categoría</span><span>${esc(nombreCategoria(p.categoriaId))}</span></div>
@@ -1090,6 +1137,11 @@ function renderFormulario(estado) {
   $('#f-nombre').value = p ? p.nombre : '';
   $('#f-venta').value = p ? precio(p.precioVenta) : '';
   $('#f-costo').value = p ? precio(p.precioCosto) : '';
+  $('#f-presentacion').value = p ? presentacionDe(p) : 'unidad';
+  $('#f-unidades').value = p && typeof p.costoUnidades === 'number' ? String(p.costoUnidades) : '';
+  $('#f-otro').value = p ? (p.costoPresentacionTexto || '') : '';
+  $('#f-descripcion').value = p ? (p.descripcion || '') : '';
+  verPresentacion();
   $('#f-lugar').value = p ? (p.lugarCompra || '') : '';
   llenarSelectCategorias(p ? p.categoriaId : (filtroCategoria !== 'todas' ? filtroCategoria : ''));
   llenarLugares();
@@ -1123,12 +1175,42 @@ function vincularCodigo() {
   navegar({ vista: 'detalle', id }, 'replace');
 }
 
+/** Lo que dice el formulario sobre la presentación del costo. */
+function presentacionDelFormulario() {
+  const id = $('#f-presentacion').value;
+  const n = parseInt($('#f-unidades').value, 10);
+  return {
+    costoPresentacion: id,
+    costoUnidades: ['unidad', 'docena'].includes(id) ? null : (n > 0 ? n : null),
+    costoPresentacionTexto: id === 'otro' ? $('#f-otro').value.trim().replace(/\s+/g, ' ').slice(0, 30) : '',
+  };
+}
+
+/** Muestra "¿Cuántas trae?" y "Otro" solo cuando hacen falta. */
+function verPresentacion() {
+  const id = $('#f-presentacion').value;
+  $('#f-unidades-caja').classList.toggle('oculto', ['unidad', 'docena'].includes(id));
+  $('#f-otro-caja').classList.toggle('oculto', id !== 'otro');
+}
+
 function actualizarGanancia() {
   const venta = leerPrecio($('#f-venta').value);
   const costo = leerPrecio($('#f-costo').value);
-  const g = textoGanancia(venta, costo);
+  const pres = presentacionDelFormulario();
+  const unitario = Number.isNaN(costo) ? NaN : costoUnitario({ precioCosto: costo, ...pres });
   const el = $('#f-ganancia');
+  if (costo !== null && !Number.isNaN(costo) && unitario === null) {
+    el.textContent = `Costo por ${nombrePresentacion(pres)}. Si sabe cuántas trae, la app calcula el costo por unidad y la ganancia.`;
+    el.className = 'ganancia';
+    return;
+  }
+  const g = textoGanancia(venta, unitario);
   if (!g) { el.textContent = ''; el.className = 'ganancia'; return; }
+  if (pres.costoPresentacion !== 'unidad') {
+    el.textContent = `Costo por unidad: ${q(unitario)} · Ganancia: ${q(g.ganancia)}${g.porcentaje !== null ? ` (${g.porcentaje}%)` : ''}`;
+    el.className = 'ganancia ' + (g.ganancia >= 0 ? 'positivo' : 'negativo');
+    return;
+  }
   el.textContent = `Ganancia por unidad: ${q(g.ganancia)}${g.porcentaje !== null ? ` (${g.porcentaje}% sobre el costo)` : ''}`;
   el.className = 'ganancia ' + (g.ganancia >= 0 ? 'positivo' : 'negativo');
 }
@@ -1153,6 +1235,15 @@ async function guardarFormulario(e) {
   if (venta === null) return error('Escriba el precio de venta.', '#f-venta');
   if (Number.isNaN(venta)) return error('El precio de venta no es válido. Ejemplo: 12.50', '#f-venta');
   if (Number.isNaN(costo)) return error('El precio de costo no es válido. Ejemplo: 9.75', '#f-costo');
+  const presentacion = presentacionDelFormulario();
+  if ($('#f-unidades').value.trim() && !presentacion.costoUnidades && !['unidad', 'docena'].includes(presentacion.costoPresentacion)) {
+    return error('"¿Cuántas trae?" debe ser un número entero. Ejemplo: 12', '#f-unidades');
+  }
+  if (presentacion.costoPresentacion === 'otro' && !presentacion.costoPresentacionTexto) {
+    return error('Escriba por qué es el costo (ej. bolsa, quintal).', '#f-otro');
+  }
+  const descripcion = $('#f-descripcion').value.trim().replace(/\s+/g, ' ');
+  const unitario = costoUnitario({ precioCosto: costo, ...presentacion });
 
   const idActual = formularioEstado.id || null;
   const repetido = productoPorCodigo(codigo, idActual);
@@ -1165,14 +1256,14 @@ async function guardarFormulario(e) {
     if (!op) return;
     if (op === 'dejar') { navegar({ vista: 'detalle', id: mismoNombre.id }, 'replace'); return; }
     if (op === 'actualizar') {
-      actualizarPreciosDe(mismoNombre, { venta, costo, codigo, lugar });
+      actualizarPreciosDe(mismoNombre, { venta, costo, codigo, lugar, presentacion });
       navegar({ vista: 'detalle', id: mismoNombre.id }, 'replace');
       return;
     }
   }
 
-  if (costo !== null && costo > venta) {
-    const seguir = await confirmar('Revise los precios', `El precio de costo (${q(costo)}) es mayor que el de venta (${q(venta)}). Perdería dinero con este producto. ¿Guardar de todos modos?`, 'Guardar');
+  if (unitario !== null && unitario > venta) {
+    const seguir = await confirmar('Revise los precios', `El costo por unidad (${q(unitario)}) es mayor que el precio de venta (${q(venta)}). Perdería dinero con este producto. ¿Guardar de todos modos?`, 'Guardar');
     if (!seguir) return;
   }
 
@@ -1181,6 +1272,8 @@ async function guardarFormulario(e) {
     nombre,
     precioVenta: venta,
     precioCosto: costo,
+    ...presentacion,
+    descripcion,
     lugarCompra: lugar,
     categoriaId: categoriaId || null,
     actualizado: new Date().toISOString(),
@@ -1757,7 +1850,7 @@ function renderLineaFactura(l, i) {
   let antes = '';
   if (existente) {
     const nuevo = leerPrecio(l.costo);
-    const viejo = existente.precioCosto;
+    const viejo = costoUnitario(existente) ?? existente.precioCosto;
     let flecha = '';
     if (typeof viejo === 'number' && typeof nuevo === 'number' && !Number.isNaN(nuevo)) {
       if (nuevo > viejo + 0.004) flecha = ' <span class="negativo">▲ subió</span>';
@@ -1900,14 +1993,14 @@ function guardarFactura() {
     if (l.productoId) {
       const p = productoPorId(l.productoId);
       const alias = [...new Set([...(Array.isArray(p.aliasFactura) ? p.aliasFactura : []), l.descripcion].filter(Boolean))].slice(-10);
-      const cambios = { precioCosto: costo, aliasFactura: alias, actualizado: ahora, actualizadoPor: sesion.nombre };
+      const cambios = { precioCosto: costo, ...COSTO_POR_UNIDAD, aliasFactura: alias, actualizado: ahora, actualizadoPor: sesion.nombre };
       if (proveedor) cambios.lugarCompra = proveedor;
       ponerLocal(datos.productos, { id: p.id, ...cambios });
       ops.push((lote) => lote.update(refDoc('productos', p.id), cambios));
     } else {
       const ref = fb.doc(refColeccion('productos'));
       const nuevo = {
-        codigo: '', nombre, precioVenta: venta, precioCosto: costo, lugarCompra: proveedor,
+        codigo: '', nombre, precioVenta: venta, precioCosto: costo, ...COSTO_POR_UNIDAD, lugarCompra: proveedor,
         categoriaId: l.categoriaId || null, aliasFactura: l.descripcion ? [l.descripcion] : [],
         creado: ahora, actualizado: ahora, actualizadoPor: sesion.nombre,
       };
@@ -2010,7 +2103,7 @@ function renderInventario(resaltar = -1) {
     <div class="hoja-fila ${i === resaltar ? 'resaltada' : ''}" data-inv="editar" data-i="${i}">
       <div class="hoja-producto">
         <span class="hoja-nombre">${esc(l.nombre)}${l.manual ? ' <span class="hoja-marca">no registrado</span>' : ''}</span>
-        <small>${textoCantidad(l.cantidad)} × ${q(l.costo)}</small>
+        <small>${textoCantidad(l.cantidad)}${esc(textoMedida(l))} × ${q(l.costo)}</small>
       </div>
       <div class="hoja-monto">${q(totalDeLinea(l))}</div>
     </div>`).join('');
@@ -2111,6 +2204,7 @@ function agregarAlInventario(datosLinea, cantidad) {
     const l = inventario.lineas[i];
     l.cantidad = Math.round((l.cantidad + cantidad) * 1000) / 1000;
     l.costo = datosLinea.costo; // por si se actualizó el precio del producto
+    l.medida = datosLinea.medida || null;
     aviso(`Ya estaba: ahora son ${textoCantidad(l.cantidad)}`);
   } else {
     inventario.lineas.push({ ...datosLinea, cantidad });
@@ -2129,9 +2223,27 @@ function enterEnviaModal() {
 }
 
 /** Muestra el precio de costo y pide la cantidad. */
+/**
+ * Costo con el que se cuenta un producto en el inventario:
+ * - si se sabe el costo por unidad, se cuentan unidades;
+ * - si el costo es por caja (o docena…) y no se sabe cuántas trae, se cuentan cajas.
+ */
+function costoParaInventario(p) {
+  if (typeof p.precioCosto !== 'number') return { costo: null, medida: null };
+  const unitario = costoUnitario(p);
+  if (unitario !== null) return { costo: unitario, medida: null };
+  return { costo: p.precioCosto, medida: { uno: nombrePresentacion(p, 1), varios: nombrePresentacion(p, 2) } };
+}
+const textoMedida = (l) => (l.medida ? ` ${l.cantidad === 1 ? l.medida.uno : l.medida.varios}` : '');
+
 async function contarProducto(p) {
   const yaContado = inventario.lineas.find((l) => l.productoId === p.id);
   const sinCosto = typeof p.precioCosto !== 'number' && !yaContado;
+  const enInventario = yaContado ? { costo: yaContado.costo, medida: yaContado.medida || null } : costoParaInventario(p);
+  const medida = enInventario.medida;
+  const nota = medida
+    ? `precio de costo por ${esc(medida.uno)}`
+    : (!sinCosto && presentacionDe(p) !== 'unidad' ? `costo por unidad (${esc(textoCosto(p, { corto: true }))})` : 'precio de costo');
   const r = await modal({
     titulo: p.nombre,
     html: `
@@ -2140,10 +2252,10 @@ async function contarProducto(p) {
         <label class="etiqueta" for="inv-costo">Precio de costo</label>
         <div class="input-moneda"><span>Q</span><input id="inv-costo" class="input" type="text" inputmode="decimal" placeholder="0.00"></div>
         ${esAdmin() ? '<label class="fila-check inv-check"><input type="checkbox" id="inv-guardar-costo" checked><span>Guardar este costo en el producto</span></label>' : ''}`
-      : `<div class="inv-costo-grande">${q(yaContado ? yaContado.costo : p.precioCosto)}</div>
-         <p class="texto-suave centrado">precio de costo</p>`}
-      ${yaContado ? `<p class="inv-ya-contado">Ya contó <strong>${textoCantidad(yaContado.cantidad)}</strong>. Lo que escriba se sumará.</p>` : ''}
-      <label class="etiqueta" for="inv-cantidad">¿Cuántos hay?</label>
+      : `<div class="inv-costo-grande">${q(enInventario.costo)}</div>
+         <p class="texto-suave centrado">${nota}</p>`}
+      ${yaContado ? `<p class="inv-ya-contado">Ya contó <strong>${textoCantidad(yaContado.cantidad)}${esc(textoMedida(yaContado))}</strong>. Lo que escriba se sumará.</p>` : ''}
+      <label class="etiqueta" for="inv-cantidad">${medida ? `Cantidad de ${esc(medida.varios)}` : '¿Cuántos hay?'}</label>
       <input id="inv-cantidad" class="input input-cantidad" type="text" inputmode="decimal" placeholder="0" autocomplete="off">
       <p id="inv-error" class="error" role="alert"></p>`,
     botones: [
@@ -2153,7 +2265,7 @@ async function contarProducto(p) {
         clase: 'btn-primario',
         accion: () => {
           const error = (m) => { $('#inv-error').textContent = m; return MANTENER_ABIERTA; };
-          let costo = yaContado ? yaContado.costo : p.precioCosto;
+          let costo = enInventario.costo;
           if (sinCosto) {
             costo = leerPrecio($('#inv-costo').value);
             if (costo === null || Number.isNaN(costo)) return error('Escriba el precio de costo. Ejemplo: 7.50');
@@ -2169,11 +2281,11 @@ async function contarProducto(p) {
   });
   if (!r) return;
   if (r.guardarCosto) {
-    const cambios = { precioCosto: r.costo, actualizado: new Date().toISOString(), actualizadoPor: sesion.nombre };
+    const cambios = { precioCosto: r.costo, ...COSTO_POR_UNIDAD, actualizado: new Date().toISOString(), actualizadoPor: sesion.nombre };
     ponerLocal(datos.productos, { id: p.id, ...cambios });
     enNube(fb.updateDoc(refDoc('productos', p.id), cambios));
   }
-  agregarAlInventario({ productoId: p.id, codigo: p.codigo || '', nombre: p.nombre, costo: r.costo, manual: false }, r.cantidad);
+  agregarAlInventario({ productoId: p.id, codigo: p.codigo || '', nombre: p.nombre, costo: r.costo, medida: sinCosto ? null : medida, manual: false }, r.cantidad);
 }
 
 /**
@@ -2244,8 +2356,12 @@ async function productoNuevoEnInventario(codigo = '') {
     }
     if (op !== 'nuevo') {
       if (op === 'actualizar') actualizarPreciosDe(mismoNombre, { costo: r.costo, codigo });
-      const costo = op === 'actualizar' ? r.costo : (typeof mismoNombre.precioCosto === 'number' ? mismoNombre.precioCosto : r.costo);
-      agregarAlInventario({ productoId: mismoNombre.id, codigo: mismoNombre.codigo || codigo, nombre: mismoNombre.nombre, costo, manual: false }, r.cantidad);
+      const existente = costoParaInventario(mismoNombre);
+      const usarNuevo = op === 'actualizar' || existente.costo === null;
+      agregarAlInventario({
+        productoId: mismoNombre.id, codigo: mismoNombre.codigo || codigo, nombre: mismoNombre.nombre,
+        costo: usarNuevo ? r.costo : existente.costo, medida: usarNuevo ? null : existente.medida, manual: false,
+      }, r.cantidad);
       return;
     }
   }
@@ -2253,7 +2369,7 @@ async function productoNuevoEnInventario(codigo = '') {
     const ahora = new Date().toISOString();
     const ref = fb.doc(refColeccion('productos'));
     const nuevo = {
-      codigo, nombre: r.nombre, precioVenta: r.venta, precioCosto: r.costo, lugarCompra: '', categoriaId: null,
+      codigo, nombre: r.nombre, precioVenta: r.venta, precioCosto: r.costo, ...COSTO_POR_UNIDAD, lugarCompra: '', categoriaId: null,
       creado: ahora, actualizado: ahora, actualizadoPor: sesion.nombre,
     };
     ponerLocal(datos.productos, { id: ref.id, ...nuevo });
@@ -2282,7 +2398,7 @@ async function buscarParaInventario() {
     return lista.map((p) => `
       <button type="button" class="inv-resultado" data-id="${esc(p.id)}">
         <span>${esc(p.nombre)}</span>
-        <span class="inv-resultado-costo">${typeof p.precioCosto === 'number' ? q(p.precioCosto) : 'sin costo'}</span>
+        <span class="inv-resultado-costo">${typeof p.precioCosto === 'number' ? textoCosto(p, { corto: true }) : 'sin costo'}</span>
       </button>`).join('');
   };
   const elegido = await modal({
@@ -2428,7 +2544,7 @@ function filasTicket(columnas) {
   filas.push(linea('-'));
   inventario.lineas.forEach((l) => {
     partir(mayus(l.nombre) + (l.manual ? ' *' : ''), columnas).forEach((t) => filas.push({ t }));
-    filas.push({ t: ambos(`  ${textoCantidad(l.cantidad)} x ${dinero(l.costo)}`, dinero(totalDeLinea(l))) });
+    filas.push({ t: ambos(`  ${textoCantidad(l.cantidad)}${mayus(textoMedida(l))} x ${dinero(l.costo)}`, dinero(totalDeLinea(l))) });
   });
   filas.push(linea('-'));
   filas.push({ t: ambos('PRODUCTOS:', String(inventario.lineas.length)) });
@@ -2668,6 +2784,10 @@ function limpiarRespaldo(d) {
       nombre: p.nombre.trim(),
       precioVenta: p.precioVenta,
       precioCosto: typeof p.precioCosto === 'number' ? p.precioCosto : null,
+      costoPresentacion: PRESENTACIONES[p.costoPresentacion] ? p.costoPresentacion : 'unidad',
+      costoUnidades: typeof p.costoUnidades === 'number' && p.costoUnidades > 0 ? p.costoUnidades : null,
+      costoPresentacionTexto: typeof p.costoPresentacionTexto === 'string' ? p.costoPresentacionTexto.slice(0, 30) : '',
+      descripcion: typeof p.descripcion === 'string' ? p.descripcion.slice(0, 120) : '',
       lugarCompra: String(p.lugarCompra || ''),
       categoriaId: p.categoriaId ? String(p.categoriaId) : null,
       creado: p.creado || null,
@@ -2820,6 +2940,8 @@ function conectarEventos() {
   $('#f-cancelar').addEventListener('click', () => history.back());
   $('#f-venta').addEventListener('input', actualizarGanancia);
   $('#f-costo').addEventListener('input', actualizarGanancia);
+  $('#f-presentacion').addEventListener('change', () => { verPresentacion(); actualizarGanancia(); });
+  $('#f-unidades').addEventListener('input', actualizarGanancia);
   $('#f-escanear').addEventListener('click', () =>
     abrirEscaner((codigo) => {
       $('#f-codigo').value = codigo;
